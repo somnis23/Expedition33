@@ -14,6 +14,21 @@ class EXPEDITION33_API AEnemyCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	AEnemyCharacter();
+	UPROPERTY(EditDefaultsOnly, Category="Movement")
+	float PatrolSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly, Category="Movement")
+	float ChaseSpeed = 400.f;
+	
+	// 플레이어 추적 사운드용 컴포넌트 생성
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Sound")
+	UAudioComponent* DetectLoopAudio;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Sound")
+	USoundBase* DetectLoopSound;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Sound")
+	USoundAttenuation* DetectAttenuation;
+	
 
 protected:
 	// Called when the game starts or when spawned
@@ -29,6 +44,11 @@ protected:
 	
 	UPROPERTY(EditAnywhere, Category= "AI")
 	float StopRange = 1200.f;
+	
+public:
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="AI")
+	bool bIsChasing;
+	
 	
 	APawn* PlayerPawn = nullptr;
 	

@@ -6,6 +6,7 @@
 #include "AIController.h"
 #include "EnemyAIController.generated.h"
 
+struct FAIStimulus;
 /**
  * 
  */
@@ -16,5 +17,11 @@ class EXPEDITION33_API AEnemyAIController : public AAIController
 	
 public:
 	virtual void OnPossess(APawn* InPawn) override;
+	 
+	/*UFUNCTION()
+	void OnTargetPerceptionUpdated(AActor* Actor , FAIStimulus Stimulus);
 	
+protected:
+	UPROPERTY(VisibleAnywhere)
+	UAIPerceptionComponent* Perception;*/
 };

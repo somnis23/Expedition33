@@ -4,6 +4,8 @@
 #include "EnemyCharacter.h"
 
 #include "EnemyAIController.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundAttenuation.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -17,13 +19,11 @@ AEnemyCharacter::AEnemyCharacter()
 	AIControllerClass = AEnemyAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	
+	DetectLoopAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("DetectLoopAudio"));
+	DetectLoopAudio->SetupAttachment(RootComponent);
+	DetectLoopAudio->bAutoActivate = false;
+	DetectLoopAudio->bAllowSpatialization = true;
 	
-	/*UCharacterMovementComponent* MoveComp = GetCharacterMovement();
-	MoveComp->MaxWalkSpeed = 300.0f;
-	MoveComp->bOrientRotationToMovement = true;
-	MoveComp->RotationRate = FRotator(0.f , 600.f ,0.f);
-	
-	bUseControllerRotationYaw = false;*/
 	
 }
 
@@ -31,13 +31,14 @@ AEnemyCharacter::AEnemyCharacter()
 void AEnemyCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+	GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 }
 
 // Called every frame
 void AEnemyCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	
 	
 	if (!PlayerPawn)
 	{
@@ -54,14 +55,29 @@ void AEnemyCharacter::Tick(float DeltaTime)
 	//추적시작
 	if (Distance < ChaseRange)
 	{
-		AICon->MoveToActor(PlayerPawn , 100.f);
-		
+		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
+
+		AICon->MoveToActor(PlayerPawn, 100.f);
+		bIsChasing = true;
+		if (DetectLoopAudio && DetectLoopSound)
+		{
+			if (!DetectLoopAudio->IsPlaying())
+			{
+				DetectLoopAudio->SetSound(DetectLoopSound);
+				DetectLoopAudio->Play();
+			}
+		}
 	}
 	// 추적중단 
 	else if (Distance > StopRange)
 	{
-		AICon->StopMovement();
-	}
-	
+		GetCharacterMovement()->MaxWalkSpeed = PatrolSpeed;
 
+		AICon->StopMovement();
+		bIsChasing = false;
+		if (DetectLoopAudio->IsPlaying())
+		{
+			DetectLoopAudio->FadeOut(0.5f, 0.f);
+		}
+	}
 }
