@@ -2,6 +2,7 @@
 
 #include "Expedition33GameMode.h"
 #include "Expedition33Character.h"
+#include "ExpeditionGameInstance.h"
 #include "UObject/ConstructorHelpers.h"
 
 AExpedition33GameMode::AExpedition33GameMode()
@@ -12,4 +13,15 @@ AExpedition33GameMode::AExpedition33GameMode()
 	{
 		DefaultPawnClass = PlayerPawnBPClass.Class;
 	}
+}
+
+void AExpedition33GameMode::BeginPlay()
+{
+	Super::BeginPlay();
+	
+	if (UExpeditionGameInstance* GI = GetGameInstance<UExpeditionGameInstance>())
+	{
+		GI->PlayBGM(GI->WorldBGM,1.0f);
+	}
+	
 }

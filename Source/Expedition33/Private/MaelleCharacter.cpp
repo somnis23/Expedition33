@@ -3,12 +3,15 @@
 
 #include "MaelleCharacter.h"
 
+#include "EnemyCharacter.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "ExpeditionGameInstance.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 // Sets default values
 AMaelleCharacter::AMaelleCharacter()
@@ -74,20 +77,24 @@ void AMaelleCharacter::BeginPlay()
 	}
 }
 
-// Called every frame
+
 void AMaelleCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	const float TargetSpeed = GetVelocity().Size2D();
 
-	// ✅ 핵심: 보간
+	//  핵심: 보간
 	SmoothedSpeed = FMath::FInterpTo(
 		SmoothedSpeed,
 		TargetSpeed,
 		DeltaTime,
 		8.f   // 보간 속도 
 	);
-
+	
+	if (bEncounterPlaying)
+	{
+		UpdateBattleEncounter(DeltaTime);
+	}
 	Speed = SmoothedSpeed;
 	bIsInAir = GetCharacterMovement()->IsFalling();
 	
@@ -163,4 +170,153 @@ void AMaelleCharacter::SprintStop()
 	Move->MaxWalkSpeed = WalkSpeed;
 	Move->BrakingDecelerationWalking = 800.f;
 }
+
+void AMaelleCharacter::DoBattleTravel()
+{
+	
+}
+/*{
+	UE_LOG(LogTemp, Warning, TEXT("DoBattleTravel"));
+
+	if (!CachedGameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CachedGameInstance is NULL"));
+		return;
+	}
+
+	CachedGameInstance->EnterBattle(
+		GetWorld()->GetFName(),
+		GetActorTransform(),
+		PendingBattleEnemyClass
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("OPEN LV_Battle"));
+	UGameplayStatics::OpenLevel(GetWorld(), FName("LV_Battle"));
+	
+}*/
+
+void AMaelleCharacter::StartBattleEncounter(AEnemyCharacter* Enemy)
+{
+	UE_LOG(LogTemp, Warning, TEXT("StartEncounter"));
+	bInEnCounter = true;
+	PendingBattleEnemyClass = Enemy->GetClass();
+	
+	if (CachedGameInstance)
+	{
+		CachedGameInstance->StopBGM(0.5f);
+	}
+
+	// 월드 슬로우(퍼즈 X)
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.1f);
+
+	// 입력 차단
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		PC->SetIgnoreMoveInput(true);
+		PC->SetIgnoreLookInput(true);
+
+		// 컨트롤 로테이션을 기준으로 카메라를 돌리는 방식
+		
+		EncounterStartControlRot = PC->GetControlRotation();
+
+		const float YawOffset = 50.f; // 50~70 
+		EncounterTargetControlRot = EncounterStartControlRot + FRotator(0.f, YawOffset, 0.f);
+	}
+
+	EncounterElapsed = 0.f;
+	bEncounterPlaying = true;
+}
+
+void AMaelleCharacter::UpdateBattleEncounter(float DeltaTime)
+{
+	EncounterElapsed += DeltaTime;
+
+	float Alpha = FMath::Clamp(EncounterElapsed / EncounterDuration, 0.f, 1.f);
+	float SmoothAlpha = FMath::InterpEaseOut(0.f, 1.f, Alpha, 2.5f);
+
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		FRotator NewRot = FMath::Lerp(EncounterStartControlRot, EncounterTargetControlRot, SmoothAlpha);
+		PC->SetControlRotation(NewRot);
+	}
+
+	if (Alpha >= 1.f)
+	{
+		FinishBattleEncounter();
+	}
+}
+
+void AMaelleCharacter::FinishBattleEncounter()
+{
+	UE_LOG(LogTemp, Warning, TEXT("FinishEncounter -> OPEN LV_Battle"));
+	bInEnCounter = false;
+	bEncounterPlaying = false;
+
+	// 슬로우 복구(중요)
+	UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+
+	if (!CachedGameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CachedGameInstance NULL in FinishEncounter"));
+		return;
+	}
+
+	// 복귀 레벨명: GetWorld()->GetFName()도 되지만,
+	// 실제 맵 이름이 필요하면 GetCurrentLevelName
+	const FName ReturnLevel = FName(*UGameplayStatics::GetCurrentLevelName(this, true));
+
+	CachedGameInstance->EnterBattle(
+		ReturnLevel,
+		GetActorTransform(),
+		PendingBattleEnemyClass
+	);
+
+	UGameplayStatics::OpenLevel(GetWorld(), FName("LV_Battle"));
+}
+
+
+void AMaelleCharacter::NotifyActorBeginOverlap(AActor* OtherActor)
+{
+	Super::NotifyActorBeginOverlap(OtherActor);
+	
+	UE_LOG(LogTemp, Warning, TEXT("NotifyActorBeginOverlap"));
+
+	// 이미 전투 이동 요청이 걸려있으면 중복 방지
+	if (bPendingBattle)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Battle travel already pending"));
+		return;
+	}
+
+	AEnemyCharacter* Enemy = Cast<AEnemyCharacter>(OtherActor);
+	if (!Enemy) return;
+	if (!Enemy->bCanTriggerBattle) return;
+
+	// 중복 진입 방지
+	Enemy->bCanTriggerBattle = false;
+	
+	CachedGameInstance = GetGameInstance<UExpeditionGameInstance>();
+	if (!CachedGameInstance)
+	{
+		UE_LOG(LogTemp, Error, TEXT("CachedGameInstance NULL at overlap"));
+		return;
+	}
+	StartBattleEncounter(Enemy);
+	/*
+	// 전투 대상 클래스 저장
+	PendingBattleEnemyClass = Enemy->GetClass();
+
+	// 전투 요청 플래그
+	bPendingBattle = true;
+	
+	UE_LOG(LogTemp, Warning, TEXT("Battle request queued -> scheduling timer"));
+
+	// 타이머: "다음 틱에" DoBattleTravel 실행
+	GetWorldTimerManager().SetTimerForNextTick(this, &AMaelleCharacter::DoBattleTravel);
+	*/
+	
+	
+	
+}
+
 

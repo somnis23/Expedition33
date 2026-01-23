@@ -14,6 +14,10 @@ class EXPEDITION33_API AEnemyCharacter : public ACharacter
 public:
 	// Sets default values for this character's properties
 	AEnemyCharacter();
+	UPROPERTY(EditDefaultsOnly , Category= "Battle")
+	bool bCanTriggerBattle= true;
+	
+	
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
 	float PatrolSpeed = 200.f;
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
@@ -48,6 +52,7 @@ protected:
 public:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category="AI")
 	bool bIsChasing;
+	
 	
 	
 	APawn* PlayerPawn = nullptr;

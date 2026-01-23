@@ -3,6 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EnemyCharacter.h"
+#include "ExpeditionGameInstance.h"
 #include "InputActionValue.h"
 #include "GameFramework/Character.h"
 #include "MaelleCharacter.generated.h"
@@ -84,4 +86,39 @@ public:
 	
 	float SmoothedSpeed = 0.f;
 	
+	UPROPERTY(BlueprintReadOnly)
+	bool bInEnCounter = false;
+	
+	
+	void NotifyActorBeginOverlap(AActor* OtherActor) override;
+	
+private:
+	UExpeditionGameInstance* CachedGameInstance = nullptr;
+	
+	//전투 진입 요청 
+	bool bPendingBattle = false;
+	
+	// 어느적?
+	TSubclassOf<AActor> PendingBattleEnemyClass;
+	
+	//타이머 핸들
+	FTimerHandle BattleTravelTimerHandle;
+	
+	//타이머로 호출될 함수
+	void DoBattleTravel();
+	
+	bool bEncounterPlaying = false;
+	float EncounterDuration = 0.4f;
+	float EncounterElapsed = 0.f;
+	
+	FRotator EncounterStartControlRot;
+	FRotator EncounterTargetControlRot;
+	
+	void StartBattleEncounter(AEnemyCharacter* Enemy);
+	void UpdateBattleEncounter(float DeltaTime);
+	void FinishBattleEncounter();
+
+	
+	
+	FTimerHandle BattleEncounterTimer;
 };

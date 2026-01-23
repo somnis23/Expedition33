@@ -13,6 +13,9 @@ class AExpedition33GameMode : public AGameModeBase
 
 public:
 	AExpedition33GameMode();
+	
+protected:
+	virtual void BeginPlay();
 };
 
 

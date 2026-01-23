@@ -57,7 +57,7 @@ void AEnemyCharacter::Tick(float DeltaTime)
 	{
 		GetCharacterMovement()->MaxWalkSpeed = ChaseSpeed;
 
-		AICon->MoveToActor(PlayerPawn, 100.f);
+		AICon->MoveToActor(PlayerPawn, 10.f);
 		bIsChasing = true;
 		if (DetectLoopAudio && DetectLoopSound)
 		{
