@@ -24,7 +24,12 @@ AEnemyCharacter::AEnemyCharacter()
 	DetectLoopAudio->bAutoActivate = false;
 	DetectLoopAudio->bAllowSpatialization = true;
 	
+	GetMesh()->SetRelativeRotation(FRotator(0.0f, 90.0f, 0.0f));
 	
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 540.f, 0.f);
+
+	bUseControllerRotationYaw = false;
 }
 
 // Called when the game starts or when spawned
