@@ -20,6 +20,10 @@ ABattleUnitActor::ABattleUnitActor()
 void ABattleUnitActor::BeginPlay()
 {
 	Super::BeginPlay();
+	if (USkeletalMeshComponent* MeshComp = GetMesh())
+	{
+		BattleAnimInstance = Cast<UBattleAnimInstance>(MeshComp->GetAnimInstance());
+	}
 	
 }
 
@@ -34,5 +38,26 @@ void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
 {
 	CurrentState = NewState;
 	
+}
+
+void ABattleUnitActor::OnTurnStart()
+{
+		
+	//TODO UI 활성화 한 후 각 함수로 분기 
+}
+
+void ABattleUnitActor::OnTurnStateChanged(int32 TurnState, bool bMyTurn)
+{
+	if (BattleAnimInstance)
+	{
+		BattleAnimInstance->SetTurnState(TurnState,bMyTurn);
+	}
+	
+}
+
+void ABattleUnitActor::OnTurnEnd()
+{
+	
+	UE_LOG(LogTemp, Warning, TEXT("BattleUnitActor OnTurnEnd"));
 }
 

@@ -199,7 +199,7 @@ void AMaelleCharacter::StartBattleEncounter(AEnemyCharacter* Enemy)
 {
 	UE_LOG(LogTemp, Warning, TEXT("StartEncounter"));
 	bInEnCounter = true;
-	PendingBattleEnemyClass = Enemy->GetClass();
+	PendingBattleEnemyClass = Enemy->BattleActorClass;
 	
 	if (CachedGameInstance)
 	{

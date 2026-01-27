@@ -3,11 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BattleUnitActor.h"
 #include "GameFramework/Actor.h"
 #include "BattleEnemyActor.generated.h"
 
 UCLASS()
-class EXPEDITION33_API ABattleEnemyActor : public AActor
+class EXPEDITION33_API ABattleEnemyActor : public ABattleUnitActor
 {
 	GENERATED_BODY()
 	
@@ -23,4 +24,5 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
+	virtual void OnTurnStart() override;
 };

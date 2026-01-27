@@ -25,3 +25,10 @@ void ABattleEnemyActor::Tick(float DeltaTime)
 
 }
 
+void ABattleEnemyActor::OnTurnStart()
+{
+	Super::OnTurnStart();
+	UE_LOG(LogTemp,Warning,TEXT("Enemy Turn"))
+}
+
+

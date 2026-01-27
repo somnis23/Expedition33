@@ -38,13 +38,13 @@ public:
 	FTransform SavedPlayerTransform;
 	//누구와 전투했는가?
 	UPROPERTY(BlueprintReadWrite)
-	TSubclassOf<AActor> BattleEnemyClass;
+	TSubclassOf<class ABattleEnemyActor> BattleEnemyClass;
 	
 	bool bReturnFromBattle;
 	
 public:
 	UFUNCTION(BlueprintCallable , Category= " Game ")
-	void EnterBattle(FName InReturnLevel , const FTransform& PlayerTransform , TSubclassOf<AActor> EnemyClass);
+	void EnterBattle(FName InReturnLevel , const FTransform& PlayerTransform , TSubclassOf<ABattleEnemyActor> EnemyClass);
 	UFUNCTION(blueprintCallable, Category= "Game")
 	void ExitBattle();
 	

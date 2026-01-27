@@ -7,7 +7,7 @@
 AMaelleBattleActor::AMaelleBattleActor()
 {
  	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bCanEverTick = false;
 
 }
 
@@ -15,6 +15,8 @@ AMaelleBattleActor::AMaelleBattleActor()
 void AMaelleBattleActor::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	
 	
 }
 
@@ -32,4 +34,13 @@ void AMaelleBattleActor::PlayAttack()
 void AMaelleBattleActor::PlayHit()
 {
 }
+
+void AMaelleBattleActor::OnTurnStart()
+{
+	Super::OnTurnStart();
+	UE_LOG(LogTemp, Warning, TEXT("Player can act now"));
+}
+
+
+
 

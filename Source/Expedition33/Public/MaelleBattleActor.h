@@ -3,11 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BattleUnitActor.h"
+#include "Battle/BattleAnimInstance.h"
 #include "GameFramework/Actor.h"
 #include "MaelleBattleActor.generated.h"
 
 UCLASS()
-class EXPEDITION33_API AMaelleBattleActor : public AActor
+class EXPEDITION33_API AMaelleBattleActor : public ABattleUnitActor
 {
 	GENERATED_BODY()
 	
@@ -26,7 +28,7 @@ public:
 	
 public:
 	UPROPERTY(VisibleAnywhere)
-	USkeletalMesh* Mesh ;
+	USkeletalMeshComponent* MeshComp;
 	
 	UPROPERTY(EditAnywhere)
 	UAnimInstance* AnimInstance;
@@ -40,4 +42,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void PlayHit();
 	
+	
+	
+	virtual void OnTurnStart() override;
 };

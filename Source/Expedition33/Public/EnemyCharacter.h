@@ -17,6 +17,7 @@ public:
 	UPROPERTY(EditDefaultsOnly , Category= "Battle")
 	bool bCanTriggerBattle= true;
 	
+
 	
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
 	float PatrolSpeed = 200.f;
@@ -57,6 +58,9 @@ public:
 	
 	APawn* PlayerPawn = nullptr;
 	
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Battle")
+	TSubclassOf<class ABattleEnemyActor> BattleActorClass;
 	// 입력값없음
 	//virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
