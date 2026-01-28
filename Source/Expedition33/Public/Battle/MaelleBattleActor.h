@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "BattleUnitActor.h"
-#include "Battle/BattleAnimInstance.h"
+//#include "Battle/BattleAnimInstance.h"
 #include "GameFramework/Actor.h"
 #include "MaelleBattleActor.generated.h"
 
@@ -35,14 +35,5 @@ public:
 	
 	UPROPERTY(BlueprintReadOnly)
 	bool bIsMyTurn = false;
-	
-	UFUNCTION(BlueprintCallable)
-	void PlayAttack();
-	
-	UFUNCTION(BlueprintCallable)
-	void PlayHit();
-	
-	
-	
 	virtual void OnTurnStart() override;
 };

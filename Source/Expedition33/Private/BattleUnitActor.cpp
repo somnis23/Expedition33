@@ -1,63 +1,126 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 
 #include "BattleUnitActor.h"
 
-// Sets default values
+#include "Components/SkeletalMeshComponent.h"
+#include "Battle/BattleAnimInstance.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+
 ABattleUnitActor::ABattleUnitActor()
 {
- 	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = false;
-	
-	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
-	RootComponent = Mesh;
-	
-	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
+    // ⚠️ CDO 안전
+    // 생성자에서는 절대 컴포넌트 생성 / 접근 / Find 하지 않는다
+    PrimaryActorTick.bCanEverTick = false;
 }
 
-// Called when the game starts or when spawned
 void ABattleUnitActor::BeginPlay()
 {
-	Super::BeginPlay();
-	if (USkeletalMeshComponent* MeshComp = GetMesh())
-	{
-		BattleAnimInstance = Cast<UBattleAnimInstance>(MeshComp->GetAnimInstance());
-	}
-	
-}
+    Super::BeginPlay();
 
-// Called every frame
-void ABattleUnitActor::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
+    // BP에 존재하는 SkeletalMeshComponent를 런타임에 찾아서 참조
+    CharacterMeshComp = FindComponentByClass<USkeletalMeshComponent>();
 
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] BeginPlay | CharacterMeshComp = %s"),
+        *GetNameSafe(CharacterMeshComp));
 }
 
 void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
 {
-	CurrentState = NewState;
-	
+    if (CurrentState == NewState)
+    {
+        return;
+    }
+
+    CurrentState = NewState;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] SetBattleState = %d"),
+        static_cast<int32>(CurrentState));
 }
 
 void ABattleUnitActor::OnTurnStart()
 {
-		
-	//TODO UI 활성화 한 후 각 함수로 분기 
-}
-
-void ABattleUnitActor::OnTurnStateChanged(int32 TurnState, bool bMyTurn)
-{
-	if (BattleAnimInstance)
-	{
-		BattleAnimInstance->SetTurnState(TurnState,bMyTurn);
-	}
-	
+    bIsMyTurn = true;
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] OnTurnStart CALLED: %s"), *GetName());
+    // AnimInstance 생성 타이밍 보장을 위해 한 틱 뒤에 실행
+    GetWorld()->GetTimerManager().SetTimerForNextTick(
+        this,
+        &ABattleUnitActor::ApplyTurnAnim
+    );
 }
 
 void ABattleUnitActor::OnTurnEnd()
 {
-	
-	UE_LOG(LogTemp, Warning, TEXT("BattleUnitActor OnTurnEnd"));
+    bIsMyTurn = false;
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] OnTurnEnd"));
 }
 
+void ABattleUnitActor::OnTurnStateChanged(
+    EBattleTurnState TurnState,
+    bool bMyTurn,
+    bool bTurnStart
+)
+{
+    bIsMyTurn = bMyTurn;
+
+    if (!CharacterMeshComp)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[BattleUnitActor] CharacterMeshComp is null"));
+        return;
+    }
+
+    UBattleAnimInstance* BattleAnim =
+        Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] OnTurnStateChanged | Anim = %s"),
+        *GetNameSafe(BattleAnim));
+
+    if (!BattleAnim)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[BattleUnitActor] Cast to UBattleAnimInstance FAILED"));
+        return;
+    }
+
+    BattleAnim->SetTurnState(
+        TurnState,
+        bMyTurn,
+        bTurnStart
+    );
+}
+
+void ABattleUnitActor::ApplyTurnAnim()
+{
+    if (!CharacterMeshComp)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[BattleUnitActor] ApplyTurnAnim | CharacterMeshComp is null"));
+        return;
+    }
+
+    UBattleAnimInstance* BattleAnim =
+        Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] ApplyTurnAnim | Anim = %s"),
+        *GetNameSafe(BattleAnim));
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] Cast BattleAnim=%s"), *GetNameSafe(BattleAnim));
+    if (!BattleAnim)
+    {
+        UE_LOG(LogTemp, Error,
+            TEXT("[BattleUnitActor] ApplyTurnAnim | Cast FAILED"));
+        return;
+    }
+
+    // 기본: 플레이어 턴 시작
+    BattleAnim->SetTurnState(
+        EBattleTurnState::PlayerTurn,
+        true,
+        true
+    );
+}

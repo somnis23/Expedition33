@@ -1,7 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "MaelleBattleActor.h"
+#include "Battle/MaelleBattleActor.h"
+#include "Battle/BattleTypes.h"
 
 // Sets default values
 AMaelleBattleActor::AMaelleBattleActor()
@@ -27,18 +28,14 @@ void AMaelleBattleActor::Tick(float DeltaTime)
 
 }
 
-void AMaelleBattleActor::PlayAttack()
-{
-}
-
-void AMaelleBattleActor::PlayHit()
-{
-}
 
 void AMaelleBattleActor::OnTurnStart()
 {
-	Super::OnTurnStart();
-	UE_LOG(LogTemp, Warning, TEXT("Player can act now"));
+	
+	Super::OnTurnStart(); // 부모에서 Anim 전달 처리
+	UE_LOG(LogTemp, Warning, TEXT("Player Turn Start"));
+	
+	
 }
 
 

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Battle/BattleTypes.h"
 #include "BattleAnimInstance.generated.h"
 
 /**
@@ -15,12 +16,19 @@ class EXPEDITION33_API UBattleAnimInstance : public UAnimInstance
 	GENERATED_BODY()
 	
 public:
-	UPROPERTY(BlueprintReadOnly , Category="Battle")
-	int32 TurnState = 0;
+	UPROPERTY(EditAnywhere,BlueprintReadOnly , Category="Battle")
+	EBattleTurnState TurnState;
 	
-	UPROPERTY(BlueprintReadOnly , Category="Battle")
+	UPROPERTY(EditAnywhere,BlueprintReadOnly , Category="Battle")
 	bool bIsMyTurn = false;
 	
-	void SetTurnState(int32 InTurnState , bool bMyTurn);
+	UPROPERTY(EditAnywhere,BlueprintReadOnly , Category="Battle")
+	bool bPlayerTurnStart =false;
 	
+	UPROPERTY(BlueprintReadOnly)
+	bool bTurnStartRequest = false;
+	
+	
+	UFUNCTION(BlueprintCallable)
+	void SetTurnState(EBattleTurnState NewState, bool bMyTurn , bool bPlayerTurnStar);
 };

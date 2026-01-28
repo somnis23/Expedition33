@@ -60,7 +60,7 @@ public:
 	
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Battle")
-	TSubclassOf<class ABattleEnemyActor> BattleActorClass;
+	TSubclassOf<class ABattleUnitActor> BattleActorClass;
 	// 입력값없음
 	//virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 

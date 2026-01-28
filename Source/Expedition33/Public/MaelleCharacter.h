@@ -99,7 +99,7 @@ private:
 	bool bPendingBattle = false;
 	
 	// 어느적?
-	TSubclassOf<class ABattleEnemyActor> PendingBattleEnemyClass;
+	TSubclassOf<class ABattleUnitActor> PendingBattleEnemyClass;
 	
 	//타이머 핸들
 	FTimerHandle BattleTravelTimerHandle;

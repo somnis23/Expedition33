@@ -3,6 +3,8 @@
 
 #include "Battle/BattleEnemyActor.h"
 
+#include "Battle/BattleTypes.h"
+
 // Sets default values
 ABattleEnemyActor::ABattleEnemyActor()
 {
@@ -28,7 +30,8 @@ void ABattleEnemyActor::Tick(float DeltaTime)
 void ABattleEnemyActor::OnTurnStart()
 {
 	Super::OnTurnStart();
-	UE_LOG(LogTemp,Warning,TEXT("Enemy Turn"))
+	UE_LOG(LogTemp, Warning, TEXT("Enemy Turn Start"));
+	
 }
 
 

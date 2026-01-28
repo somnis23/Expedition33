@@ -1,88 +1,67 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
-#include "BattleUnitActor.h"
-#include "MaelleBattleActor.h"
-#include "MaelleCharacter.h"
-#include "Battle/BattleCameraActor.h"
-#include "Battle/BattleEnemyActor.h"
 #include "GameFramework/GameMode.h"
+#include "Battle/BattleTypes.h"
+#include "Battle/MaelleBattleActor.h"
+#include "Battle/BattleEnemyActor.h"
+#include "Battle/BattleTurnManager.h"
+
 #include "BattleGameMode.generated.h"
 
-/**
- * 
- */
-UENUM(BlueprintType)
-enum class EBattleTurnState : uint8
-{
-	None		UMETA(DisplayName="None"),
-	BattleStart UMETA(DisplayName="BattleStart"),
-	PlayerTurn  UMETA(DisplayName="PlayerTurn"),
-	EnemyTurn   UMETA(DisplayName="EnemyTurn"),
-	TurnEnd		UMETA(DisplayName="TurnEnd"),
-	BattleEnd   UMETA(DisplayName="BattleEnd")
-	//EndEnemyTurn	UMETA(DisplayName="EndEnemyTurn")
-	
-};
+class ABattleUnitActor;
+class ABattleCameraActor;
 
 UCLASS()
 class EXPEDITION33_API ABattleGameMode : public AGameMode
 {
 	GENERATED_BODY()
+
 public:
 	ABattleGameMode();
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly , Category="State")
-	EBattleTurnState CurrentTurnState = EBattleTurnState::None;
-	
-	//턴 시스템 
-	void SetTurnState(EBattleTurnState NewState);
-	void OnTurnStateChanged(EBattleTurnState NewState);
-	void HandleBattleStart();
-	void HandlePlayerTurn();
-	void HandleEnemyTurn();
-	void HandleTurnEnd();
-	void StartPlayerTurn();
-	void EndPlayerTurn();
-	void EndEnemyTurn();
-	
-	FTimerHandle TurnTimerHandle;
+
 protected:
 	virtual void BeginPlay() override;
-	
-private:
+
+protected:
+	// === Spawn ===
 	void SpawnPlayer();
 	void SpawnEnemy();
-	void AlignBattleActors();
-	void SpawnAndSetBattleCamera();
-	
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<AMaelleBattleActor> PlayerBattleClass;
 
-	UPROPERTY(EditDefaultsOnly)
-	TSubclassOf<ABattleEnemyActor> EnemyBattleClass;
+	// === Spawn Camera ===
+	void SpawnBattleCamera();
 	
-	FVector PlayerSpawnLocation;
-	FRotator PlayerSpawnRotation;
-	
-	FVector EnemySpawnLocation;
-	FRotator EnemySpawnRotator;
-	
-	UPROPERTY()
-	//AMaelleBattleActor* BattlePlayer = nullptr;
-	ABattleUnitActor* BattlePlayer = nullptr;
-	UPROPERTY()
-	//ABattleEnemyActor* BattleEnemy = nullptr;
-	ABattleUnitActor* BattleEnemy = nullptr;
-	
-	UPROPERTY(EditDefaultsOnly , Category="Battle")
+	// === Battle Camera ===
+	UPROPERTY(EditDefaultsOnly , Category="Battle Camera")
 	TSubclassOf<ABattleCameraActor> BattleCameraClass;
 	
 	UPROPERTY()
-	ABattleCameraActor* BattleCamera = nullptr;
+	ABattleCameraActor* BattleCamera;
+	
+	// === Battle Units ===
+	UPROPERTY()
+	AMaelleBattleActor* BattlePlayer = nullptr;
 
+	UPROPERTY()
+	ABattleEnemyActor* BattleEnemy = nullptr;
+
+	// === Turn Manager ===
+	UPROPERTY()
+	ABattleTurnManager* TurnManager = nullptr;
+
+protected:
+	// === Classes ===
+	UPROPERTY(EditDefaultsOnly, Category="Battle")
+	TSubclassOf<AMaelleBattleActor> PlayerBattleClass;
+
+	UPROPERTY(EditDefaultsOnly, Category="Battle")
+	TSubclassOf<ABattleEnemyActor> EnemyBattleClass;
+
+protected:
+	// === Spawn Transforms ===
+	FVector PlayerSpawnLocation;
+	FRotator PlayerSpawnRotation;
+
+	FVector EnemySpawnLocation;
+	FRotator EnemySpawnRotation;
 };
-
-

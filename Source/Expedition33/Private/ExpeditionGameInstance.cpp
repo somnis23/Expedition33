@@ -6,7 +6,7 @@
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
 
-void UExpeditionGameInstance::EnterBattle(FName InReturnLevel, const FTransform& PlayerTransform, TSubclassOf<ABattleEnemyActor> EnemyClass)
+void UExpeditionGameInstance::EnterBattle(FName InReturnLevel, const FTransform& PlayerTransform, TSubclassOf<ABattleUnitActor> EnemyClass)
 {
 	Currentphase = EGamePhase::Battle;
 	ReturnLevelName = InReturnLevel;
