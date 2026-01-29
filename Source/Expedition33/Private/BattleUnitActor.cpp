@@ -1,15 +1,17 @@
 
 #include "BattleUnitActor.h"
 
+#include "BattleGameMode.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Battle/BattleAnimInstance.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "Battle/BattleTurnManager.h"
 
+FTimerHandle EnemyAttackTimer;
 ABattleUnitActor::ABattleUnitActor()
 {
-    // ⚠️ CDO 안전
-    // 생성자에서는 절대 컴포넌트 생성 / 접근 / Find 하지 않는다
+    
     PrimaryActorTick.bCanEverTick = false;
 }
 
@@ -34,20 +36,36 @@ void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
 
     CurrentState = NewState;
 
-    UE_LOG(LogTemp, Warning,
-        TEXT("[BattleUnitActor] SetBattleState = %d"),
-        static_cast<int32>(CurrentState));
+    
+        static_cast<int32>(CurrentState);
 }
 
 void ABattleUnitActor::OnTurnStart()
 {
     bIsMyTurn = true;
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] OnTurnStart CALLED: %s"), *GetName());
-    // AnimInstance 생성 타이밍 보장을 위해 한 틱 뒤에 실행
-    GetWorld()->GetTimerManager().SetTimerForNextTick(
-        this,
-        &ABattleUnitActor::ApplyTurnAnim
-    );
+    
+    if (UnitType == EBattleUnitType::Enemy)
+    {
+        UE_LOG(LogTemp , Warning , TEXT("Enemy Turn :::"))
+        
+        GetWorld()->GetTimerManager().SetTimer(EnemyAttackTimer,
+            this,
+            &ABattleUnitActor::RequestAttack,
+            2.5f,
+            false);
+    }
+    else
+    {
+       
+        GetWorld()->GetTimerManager().SetTimerForNextTick(
+            this,
+            &ABattleUnitActor::ApplyTurnAnim
+        );
+    }
+    
+    
+    
+    
 }
 
 void ABattleUnitActor::OnTurnEnd()
@@ -56,6 +74,18 @@ void ABattleUnitActor::OnTurnEnd()
 
     UE_LOG(LogTemp, Warning,
         TEXT("[BattleUnitActor] OnTurnEnd"));
+
+    if (UWorld* World = GetWorld())
+    {
+        if (ABattleGameMode* GM =
+            World->GetAuthGameMode<ABattleGameMode>())
+        {
+            if (ABattleTurnManager* TM = GM->GetTurnManager())
+            {
+                TM->NextTurn();
+            }
+        }
+    }
 }
 
 void ABattleUnitActor::OnTurnStateChanged(
@@ -94,6 +124,24 @@ void ABattleUnitActor::OnTurnStateChanged(
     );
 }
 
+void ABattleUnitActor::EnterAttackMode()
+{
+    CommandState = EBattleCommandState::TargetSelect ;
+    
+    UE_LOG(LogTemp, Warning,
+        TEXT("[BattleUnitActor] EnterAttackMode → TargetSelect"));
+}
+
+void ABattleUnitActor::ConfirmnAttack()
+{
+    if (!SelectedTarget)    return;
+    
+    CommandState = EBattleCommandState::Executing;
+    
+    RequestAttack();
+    
+}
+
 void ABattleUnitActor::ApplyTurnAnim()
 {
     if (!CharacterMeshComp)
@@ -123,4 +171,30 @@ void ABattleUnitActor::ApplyTurnAnim()
         true,
         true
     );
+}
+
+void ABattleUnitActor::RequestAttack()
+{
+    UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] RequestAttack Anim=%s"), *GetNameSafe(Anim));
+
+    if (Anim)
+    {
+        Anim->RequestAttack();
+    }
+    
+}
+
+void ABattleUnitActor::SetSelected(bool bSelected)
+{
+    if (!CharacterMeshComp) return;
+
+    CharacterMeshComp->SetRenderCustomDepth(bSelected);
+    CharacterMeshComp->SetCustomDepthStencilValue(1); // 임시 값
+
+    UE_LOG(LogTemp, Warning,
+        TEXT("[Unit] %s Selected = %s"),
+        *GetName(),
+        bSelected ? TEXT("true") : TEXT("false"));
+    
 }

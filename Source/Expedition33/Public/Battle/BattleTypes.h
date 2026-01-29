@@ -11,3 +11,13 @@ enum class EBattleTurnState : uint8
 	EnemyTurn   UMETA(DisplayName="EnemyTurn"),
 	End         UMETA(DisplayName="End")
 };
+
+//전투 입력 상태 enum
+UENUM(BlueprintType)
+enum class EBattleCommandState : uint8
+{
+	None ,
+	CommandSelect ,	// 명령 선택 ( 스킬 , 공격 ,등 )
+	TargetSelect ,  // 사용할 대상 선택
+	Executing		// 실행 중 
+};

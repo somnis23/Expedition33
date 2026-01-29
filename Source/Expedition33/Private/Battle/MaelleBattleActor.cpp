@@ -33,7 +33,9 @@ void AMaelleBattleActor::OnTurnStart()
 {
 	
 	Super::OnTurnStart(); // 부모에서 Anim 전달 처리
-	UE_LOG(LogTemp, Warning, TEXT("Player Turn Start"));
+	
+	//테스트 턴시작시 바로공격 
+	//RequestAttack();
 	
 	
 }

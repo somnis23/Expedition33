@@ -19,13 +19,19 @@ public:
 	
 	void Initialize(const TArray<ABattleUnitActor*>& InUnits);
 	void StartBattle();
-	void NextTurn();
+	
+	ABattleUnitActor* GetCurrentUnit() const;
 
+	void EndTurn(ABattleUnitActor* Unit);
+	
+	void NextTurn();
 private:
 	UPROPERTY()
 	TArray<ABattleUnitActor*> TurnQueue;
 	
 	int32 CurrentTurnIndex = INDEX_NONE;
+	
+	
 	
 protected:
 	// Called when the game starts or when spawned

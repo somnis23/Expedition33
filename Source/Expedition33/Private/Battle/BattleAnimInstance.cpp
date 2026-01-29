@@ -3,6 +3,8 @@
 
 #include "Battle/BattleAnimInstance.h"
 
+#include "BattleUnitActor.h"
+
 void UBattleAnimInstance::SetTurnState(EBattleTurnState NewState, bool bMyTurn ,bool bPlayerTurnStar)
 {
 	TurnState = NewState;
@@ -19,4 +21,25 @@ void UBattleAnimInstance::SetTurnState(EBattleTurnState NewState, bool bMyTurn ,
 		(int32)TurnState,
 		bIsMyTurn ? TEXT("true") : TEXT("false")
 	);
+}
+
+void UBattleAnimInstance::RequestAttack()
+{
+	if (bAttackRequest) return; // 중복 방지
+
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Attack Requested"));
+	
+	bAttackRequest = true;
+	
+}
+
+void UBattleAnimInstance::Animnotify_AttackEnd()
+{
+	UE_LOG(LogTemp , Error , TEXT("Anim ::::: >> Attack End "));
+	
+	if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(TryGetPawnOwner()))
+	{
+		Unit->OnTurnEnd();
+	}
+	
 }

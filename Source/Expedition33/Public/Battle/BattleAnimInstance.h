@@ -26,9 +26,28 @@ public:
 	bool bPlayerTurnStart =false;
 	
 	UPROPERTY(BlueprintReadOnly)
-	bool bTurnStartRequest = false;
+	bool bCanAct = false;
+	
+	
 	
 	
 	UFUNCTION(BlueprintCallable)
 	void SetTurnState(EBattleTurnState NewState, bool bMyTurn , bool bPlayerTurnStar);
+
+
+	UPROPERTY(BlueprintReadOnly,Category= "Battle")
+	bool bAttackRequest = false;
+	
+	UFUNCTION(BlueprintCallable, Category= "Battle")
+	void RequestAttack();
+
+protected:
+	UPROPERTY(BlueprintReadOnly)
+	bool bTurnStartRequest = false;
+	
+	
+public:
+	UFUNCTION()
+	void Animnotify_AttackEnd();
+	
 };

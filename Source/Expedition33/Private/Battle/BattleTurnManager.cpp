@@ -39,6 +39,26 @@ void ABattleTurnManager::NextTurn()
 	
 }
 
+ABattleUnitActor* ABattleTurnManager::GetCurrentUnit() const
+{
+	if (!TurnQueue.IsValidIndex(CurrentTurnIndex))
+		return nullptr;
+	
+	return TurnQueue[CurrentTurnIndex];
+}
+
+void ABattleTurnManager::EndTurn(ABattleUnitActor* Unit)
+{
+	if (!TurnQueue.IsValidIndex(CurrentTurnIndex))
+		return;
+
+	if (TurnQueue[CurrentTurnIndex] != Unit)
+		return;
+
+	NextTurn();
+	
+}
+
 // Called when the game starts or when spawned
 void ABattleTurnManager::BeginPlay()
 {

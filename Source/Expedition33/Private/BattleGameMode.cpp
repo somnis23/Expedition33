@@ -1,18 +1,27 @@
 #include "BattleGameMode.h"
 #include "BattleUnitActor.h"
 #include "Battle/BattleCameraActor.h"
+#include "Battle/BattlePlayerController.h"
 #include "Kismet/GameplayStatics.h"
 
 ABattleGameMode::ABattleGameMode()
 {
     PrimaryActorTick.bCanEverTick = false;
+   PlayerControllerClass = ABattlePlayerController::StaticClass();
+    
     DefaultPawnClass = nullptr;
+    
 }
 
 void ABattleGameMode::BeginPlay()
 {
     Super::BeginPlay();
-
+    
+    UE_LOG(LogTemp, Error,
+    TEXT("### GAMEMODE CLASS = %s ###"),
+    *GetClass()->GetName());
+    
+    
     SpawnPlayer();
     SpawnEnemy();
     
@@ -40,6 +49,21 @@ void ABattleGameMode::BeginPlay()
 
     UE_LOG(LogTemp, Warning, TEXT("BattleGameMode: Battle Start"));
     TurnManager->StartBattle();
+    
+    ABattlePlayerController* PC = Cast<ABattlePlayerController>
+    (UGameplayStatics::GetPlayerController(this,0));
+    
+    if (PC)
+    {
+        PC->SetControlledUnit(BattlePlayer);
+        
+        TArray<ABattleUnitActor*> Enemies;
+        Enemies.Add(BattleEnemy);
+        
+        PC->SetEnemyUnits(Enemies);
+        
+        
+    }
 }
 
 void ABattleGameMode::SpawnPlayer()

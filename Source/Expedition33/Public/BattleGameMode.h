@@ -5,6 +5,7 @@
 #include "Battle/BattleTypes.h"
 #include "Battle/MaelleBattleActor.h"
 #include "Battle/BattleEnemyActor.h"
+#include "Battle/BattlePlayerController.h"
 #include "Battle/BattleTurnManager.h"
 
 #include "BattleGameMode.generated.h"
@@ -22,6 +23,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	
+public:
+	ABattleTurnManager* GetTurnManager() const {return TurnManager;}
 
 protected:
 	// === Spawn ===
@@ -48,6 +52,9 @@ protected:
 	// === Turn Manager ===
 	UPROPERTY()
 	ABattleTurnManager* TurnManager = nullptr;
+	
+	UPROPERTY(EditDefaultsOnly, Category="Battle")
+	TSubclassOf<ABattlePlayerController> BattlePlayerControllerClass;
 
 protected:
 	// === Classes ===
@@ -64,4 +71,6 @@ protected:
 
 	FVector EnemySpawnLocation;
 	FRotator EnemySpawnRotation;
+	
+	
 };

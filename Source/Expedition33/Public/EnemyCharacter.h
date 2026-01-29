@@ -17,8 +17,6 @@ public:
 	UPROPERTY(EditDefaultsOnly , Category= "Battle")
 	bool bCanTriggerBattle= true;
 	
-
-	
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
 	float PatrolSpeed = 200.f;
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
