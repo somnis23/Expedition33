@@ -8,11 +8,14 @@
 #include "TimerManager.h"
 #include "Battle/BattleTurnManager.h"
 
-FTimerHandle EnemyAttackTimer;
+//FTimerHandle EnemyAttackTimer;
+static const FName TAG_TurnEnd(TEXT("AttackEndPending"));
+static const FName TAG_Retreat(TEXT("EnemyRetreatPending"));
 ABattleUnitActor::ABattleUnitActor()
 {
     
-    PrimaryActorTick.bCanEverTick = false;
+    PrimaryActorTick.bCanEverTick = true
+    ;
 }
 
 void ABattleUnitActor::BeginPlay()
@@ -46,25 +49,18 @@ void ABattleUnitActor::OnTurnStart()
     
     if (UnitType == EBattleUnitType::Enemy)
     {
-        UE_LOG(LogTemp , Warning , TEXT("Enemy Turn :::"))
-        
-        GetWorld()->GetTimerManager().SetTimer(EnemyAttackTimer,
-            this,
-            &ABattleUnitActor::RequestAttack,
-            2.5f,
-            false);
+        //  턴 시작 위치를 원위치로 저장
+        EnemyHomeLocation = GetActorLocation();
+
+        UE_LOG(LogTemp, Warning, TEXT("[Enemy] TurnStart Home=(%.1f, %.1f, %.1f)"),
+            EnemyHomeLocation.X, EnemyHomeLocation.Y, EnemyHomeLocation.Z);
+
+        StartEnemyWalk();
+        return;
     }
-    else
-    {
-       
-        GetWorld()->GetTimerManager().SetTimerForNextTick(
-            this,
-            &ABattleUnitActor::ApplyTurnAnim
-        );
-    }
-    
-    
-    
+
+    // 플레이어는 기존 그대로
+    GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ABattleUnitActor::ApplyTurnAnim);
     
 }
 
@@ -75,6 +71,13 @@ void ABattleUnitActor::OnTurnEnd()
     UE_LOG(LogTemp, Warning,
         TEXT("[BattleUnitActor] OnTurnEnd"));
 
+    if (UnitType == EBattleUnitType::Enemy)
+    {
+        SetActorLocation(EnemyHomeLocation);
+        SetEnemyPhaseOnAnim(EEnemyTurnPhase::Idle);
+    }
+    
+    
     if (UWorld* World = GetWorld())
     {
         if (ABattleGameMode* GM =
@@ -82,7 +85,7 @@ void ABattleUnitActor::OnTurnEnd()
         {
             if (ABattleTurnManager* TM = GM->GetTurnManager())
             {
-                TM->NextTurn();
+                TM->EndTurn(this);
             }
         }
     }
@@ -132,7 +135,7 @@ void ABattleUnitActor::EnterAttackMode()
         TEXT("[BattleUnitActor] EnterAttackMode → TargetSelect"));
 }
 
-void ABattleUnitActor::ConfirmnAttack()
+void ABattleUnitActor::ConfirmAttack()
 {
     if (!SelectedTarget)    return;
     
@@ -185,6 +188,14 @@ void ABattleUnitActor::RequestAttack()
     
 }
 
+void ABattleUnitActor::OnAttackFinished()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] Attack Finished"));
+
+    SetBattleState(EBattleUnitState::Idle);
+    OnTurnEnd();
+}
+
 void ABattleUnitActor::SetSelected(bool bSelected)
 {
     if (!CharacterMeshComp) return;
@@ -196,5 +207,141 @@ void ABattleUnitActor::SetSelected(bool bSelected)
         TEXT("[Unit] %s Selected = %s"),
         *GetName(),
         bSelected ? TEXT("true") : TEXT("false"));
+    
+}
+
+void ABattleUnitActor::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+
+    // 1) Walk 이동 보간
+    if (bIsMyTurn && UnitType == EBattleUnitType::Enemy && bWalking)
+    {
+        WalkElapsed += DeltaTime;
+        const float A = FMath::Clamp(WalkElapsed / EnemyWalkDuration, 0.f, 1.f);
+
+        SetActorLocation(FMath::Lerp(WalkStartLoc, WalkTargetLoc, A));
+
+        if (A >= 1.f)
+        {
+            bWalking = false;
+            StartEnemyCharge();
+        }
+    }
+
+    // 2) Retreat 이동 보간(원위치 복귀)
+    if (bIsMyTurn && UnitType == EBattleUnitType::Enemy && bRetreating)
+    {
+        RetreatElapsed += DeltaTime;
+        const float A = FMath::Clamp(RetreatElapsed / EnemyRetreatDuration, 0.f, 1.f);
+
+        SetActorLocation(FMath::Lerp(RetreatStartLoc, EnemyHomeLocation, A));
+
+        if (A >= 1.f)
+        {
+            bRetreating = false;
+            SetActorLocation(EnemyHomeLocation); // 정확히 스냅
+        }
+    }
+
+    // 3) 공격 끝 → Retreat 시작(태그)
+    if (Tags.Contains(TAG_Retreat))
+    {
+        Tags.Remove(TAG_Retreat);
+        if (bIsMyTurn && UnitType == EBattleUnitType::Enemy)
+        {
+            StartEnemyRetreat();
+        }
+    }
+
+    // 4) 점프백 끝 → 턴 종료(태그)
+    if (Tags.Contains(TAG_TurnEnd))
+    {
+        Tags.Remove(TAG_TurnEnd);
+        if (bIsMyTurn)
+        {
+            OnTurnEnd();
+        }
+    }
+}
+
+void ABattleUnitActor::StartEnemyWalk()
+{
+    SetEnemyPhaseOnAnim(EEnemyTurnPhase::Walk);
+
+    bWalking = true;
+    WalkElapsed = 0.f;
+    WalkStartLoc = GetActorLocation();
+
+    // “앞으로”는 액터 Forward 기준
+    WalkTargetLoc = WalkStartLoc + GetActorForwardVector() * EnemyWalkDistance;
+    
+}
+
+void ABattleUnitActor::StartEnemyCharge()
+{
+    SetEnemyPhaseOnAnim(EEnemyTurnPhase::Charge);
+
+    //  Charge 진입 시 Fire/Ice 미리 랜덤 결정
+    const EEnemyAttackType Picked = FMath::RandBool() ? EEnemyAttackType::Fire : EEnemyAttackType::Ice;
+    SetPlannedAttackOnAnim(Picked);
+
+    UE_LOG(LogTemp, Warning, TEXT("[Enemy] PlannedAttack=%s"),
+        (Picked == EEnemyAttackType::Fire) ? TEXT("Fire") : TEXT("Ice"));
+
+    // Charge 지속 후 공격으로
+    GetWorld()->GetTimerManager().ClearTimer(EnemyPhaseTimer);
+    GetWorld()->GetTimerManager().SetTimer(
+        EnemyPhaseTimer, this, &ABattleUnitActor::StartEnemyAttack, EnemyChargeDuration, false);
+}
+
+void ABattleUnitActor::StartEnemyAttack()
+{
+    GetWorld()->GetTimerManager().ClearTimer(EnemyPhaseTimer);
+
+    const bool bFire = (PlannedAttack == EEnemyAttackType::Fire);
+    SetEnemyPhaseOnAnim(bFire ? EEnemyTurnPhase::AttackFire : EEnemyTurnPhase::AttackIce);
+
+    UE_LOG(LogTemp, Warning, TEXT("[Enemy] StartAttack=%s"), bFire ? TEXT("Fire") : TEXT("Ice"));
+
+    // 여기서 턴 종료하지 않음
+    // 공격 애니 끝(Notify_BattleTag) → EnemyRetreatPending 태그 → StartEnemyRetreat()
+}
+
+void ABattleUnitActor::StartEnemyRetreat()
+{
+    // Retreat(점프백) 애니로 전환
+    SetEnemyPhaseOnAnim(EEnemyTurnPhase::Retreat);
+
+    // 원위치로 돌아오는 이동 보간 시작
+    bRetreating = true;
+    RetreatElapsed = 0.f;
+    RetreatStartLoc = GetActorLocation();
+
+    UE_LOG(LogTemp, Warning, TEXT("[Enemy] Retreat Start -> Home"));
+    
+}
+
+void ABattleUnitActor::SetEnemyPhaseOnAnim(EEnemyTurnPhase Phase)
+{
+    if (!CharacterMeshComp) return;
+    EnemyPhaseRuntime = Phase;
+    
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        Anim->SetEnemyPhase(Phase);
+    }
+    
+}
+
+void ABattleUnitActor::SetPlannedAttackOnAnim(EEnemyAttackType Type)
+{
+    PlannedAttack = Type;
+
+    if (!CharacterMeshComp) return;
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        Anim->SetPlannedAttack(Type);
+    }
     
 }

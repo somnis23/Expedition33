@@ -5,6 +5,20 @@
 
 #include "BattleUnitActor.h"
 
+
+// Enemy battle 에 현재 상태 기억용
+void UBattleAnimInstance::SetEnemyPhase(EEnemyTurnPhase NewPhase)
+{
+	EnemyPhase = NewPhase;
+	
+}
+
+void UBattleAnimInstance::SetPlannedAttack(EEnemyAttackType NewType)
+{
+	PlannedAttack = NewType; 
+	
+}
+
 void UBattleAnimInstance::SetTurnState(EBattleTurnState NewState, bool bMyTurn ,bool bPlayerTurnStar)
 {
 	TurnState = NewState;
@@ -33,7 +47,21 @@ void UBattleAnimInstance::RequestAttack()
 	
 }
 
-void UBattleAnimInstance::Animnotify_AttackEnd()
+void UBattleAnimInstance::OnAttackAnimFinished()
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Attack End"));
+
+	if (ABattleUnitActor* Unit =
+		Cast<ABattleUnitActor>(TryGetPawnOwner()))
+	{
+		Unit->OnAttackFinished();
+	}
+	
+}
+
+
+
+/*void UBattleAnimInstance::AnimNotify_AttackEnd()
 {
 	UE_LOG(LogTemp , Error , TEXT("Anim ::::: >> Attack End "));
 	
@@ -43,3 +71,9 @@ void UBattleAnimInstance::Animnotify_AttackEnd()
 	}
 	
 }
+
+void UBattleAnimInstance::AnimNotify_Test()
+{
+	UE_LOG(LogTemp, Error, TEXT("🔥 TEST NOTIFY 🔥"));
+	
+}*/

@@ -11,51 +11,42 @@
 /**
  * 
  */
+UENUM()
+enum class EBattleInputMode : uint8
+{
+	None,
+	TargetSelect
+};
+class ABattleUnitActor;
+class ABattleTurnManager;
+class ABattleGameMode;
+
+
 UCLASS()
 class EXPEDITION33_API ABattlePlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	
-	
-protected:
-	virtual void SetupInputComponent() override; 
-	
-	void OnAttackPressed();
-	void OnSelectNext();
-	void OnSelectPrev();
-	void OnConfirm();
-	
-private:
-	UPROPERTY()
-	ABattleUnitActor* ControlledUnit = nullptr;
-	
-	UPROPERTY()
-	TArray<ABattleUnitActor*> EnemyUnits;
-	
-	int32 SelectedIndex = 0;
-	bool bSelectingTarget = false;
-	
-	
+
 public:
-	void SetControlledUnit(ABattleUnitActor* Unit);
-	void SetEnemyUnits(const TArray<ABattleUnitActor*>& Enemies);
-	
-protected:
-	virtual void BeginPlay() override;
-	
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category = "Input")
-	UInputMappingContext* BattleIMC;
-	
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category = "Input")
-	UInputAction* IA_Attack;
-	
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category = "Input")
-	UInputAction* IA_Confirm;
-	
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category = "Input")
-	UInputAction* IA_SelectNext;
-	
-	UPROPERTY(EditDefaultsOnly,BlueprintReadOnly,Category = "Input")
-	UInputAction* IA_SelectPrev;
-	
+	virtual void SetupInputComponent() override;
+
+private:
+	EBattleInputMode InputMode = EBattleInputMode::None;
+
+	int32 SelectedEnemyIndex = 0;
+
+	UPROPERTY()
+	TArray<TObjectPtr<ABattleUnitActor>> CachedEnemies;
+
+	bool IsPlayerTurn() const;
+	ABattleUnitActor* GetCurrentUnit() const;
+	void CacheEnemies();
+
+	void ClearEnemySelection();
+	void ApplyEnemySelection();
+
+	void OnPressS_AttackMode();
+	void OnPressA_PrevTarget();
+	void OnPressD_NextTarget();
+	void OnPressF_ConfirmTarget();
 };

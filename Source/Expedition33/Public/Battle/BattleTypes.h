@@ -21,3 +21,23 @@ enum class EBattleCommandState : uint8
 	TargetSelect ,  // 사용할 대상 선택
 	Executing		// 실행 중 
 };
+
+//몬스터 상태
+UENUM(BlueprintType)
+enum class EEnemyTurnPhase : uint8
+{
+	Idle,
+	Walk,
+	Charge,
+	AttackFire,
+	AttackIce,
+	Retreat
+	
+};
+UENUM(BlueprintType)
+enum class EEnemyAttackType : uint8
+{
+	Fire,
+	Ice
+	
+};

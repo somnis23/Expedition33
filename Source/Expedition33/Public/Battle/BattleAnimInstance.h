@@ -28,8 +28,17 @@ public:
 	UPROPERTY(BlueprintReadOnly)
 	bool bCanAct = false;
 	
+	UPROPERTY(BlueprintReadOnly,Category="Enemy")
+	EEnemyTurnPhase EnemyPhase = EEnemyTurnPhase::Idle;
 	
+	UPROPERTY(BlueprintReadOnly,Category="Enemy")
+	EEnemyAttackType PlannedAttack = EEnemyAttackType::Fire;
 	
+	UFUNCTION(BlueprintCallable , Category= "Enemy")
+	void SetEnemyPhase(EEnemyTurnPhase NewPhase);
+	
+	UFUNCTION(BlueprintCallable, Category="Enemy")
+	void SetPlannedAttack(EEnemyAttackType NewType);
 	
 	UFUNCTION(BlueprintCallable)
 	void SetTurnState(EBattleTurnState NewState, bool bMyTurn , bool bPlayerTurnStar);
@@ -48,6 +57,6 @@ protected:
 	
 public:
 	UFUNCTION()
-	void Animnotify_AttackEnd();
+	void OnAttackAnimFinished();
 	
 };

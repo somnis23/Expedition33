@@ -30,11 +30,16 @@ void ABattleTurnManager::StartBattle()
 
 void ABattleTurnManager::NextTurn()
 {
+	
+
 	if (TurnQueue.Num() == 0) return;
-	TurnQueue[CurrentTurnIndex]->OnTurnEnd();
+
 	
 	CurrentTurnIndex = (CurrentTurnIndex + 1) % TurnQueue.Num();
-	
+
+	UE_LOG(LogTemp, Warning, TEXT("[TurnManager] NextTurn -> %s"),
+		*GetNameSafe(TurnQueue[CurrentTurnIndex]));
+
 	TurnQueue[CurrentTurnIndex]->OnTurnStart();
 	
 }

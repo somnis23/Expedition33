@@ -53,7 +53,7 @@ void ABattleGameMode::BeginPlay()
     ABattlePlayerController* PC = Cast<ABattlePlayerController>
     (UGameplayStatics::GetPlayerController(this,0));
     
-    if (PC)
+    /*if (PC)
     {
         PC->SetControlledUnit(BattlePlayer);
         
@@ -63,7 +63,7 @@ void ABattleGameMode::BeginPlay()
         PC->SetEnemyUnits(Enemies);
         
         
-    }
+    }*/
 }
 
 void ABattleGameMode::SpawnPlayer()
