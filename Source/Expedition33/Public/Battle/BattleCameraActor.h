@@ -15,6 +15,7 @@ class EXPEDITION33_API ABattleCameraActor : public AActor
 
 public:
 	ABattleCameraActor();
+	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 	virtual void BeginPlay() override;
@@ -22,7 +23,8 @@ protected:
 public:
 	// === 초기화 ===
 	void Init(ABattleUnitActor* InPlayer, ABattleUnitActor* InEnemy);
-
+	
+	UCameraComponent* GetCameraComponent() const {return Camera;}
 protected:
 	// === Components ===
 	UPROPERTY(VisibleAnywhere)
@@ -51,6 +53,49 @@ protected:
 	UPROPERTY(EditAnywhere, Category="BattleCamera")
 	float MaxDistance = 900.f;
 
+	
+public:
+	
+	
+	
+	void SetAnchor(AActor* InAnchor){Anchor = InAnchor;}
+	
+	UFUNCTION()
+	void SetFreeAim(bool bEnable);
+	
+	void AddAimInput(float YawDelta , float PitchDelta);
+	
+	void UpdateBattleCam(float DT);
+	void UpdateFreeAimCam(float DT);
+	
+	
 private:
 	void UpdateCameraTransform();
+	
+	TWeakObjectPtr<AActor> Anchor;
+
+	bool bFreeAim = false;
+
+	// 현재/목표 값(보간용)
+	float TargetFOV;
+	float TargetArmLength;
+	FVector TargetOffset;
+
+	float CurrentYaw = 0.f;
+	float CurrentPitch = 0.f;
+
+	// 기본/조준 파라미터
+	float DefaultFOV = 90.f;
+	float AimFOV = 60.f;
+
+	float DefaultArm = 380.f;
+	float AimArm = 260.f;
+
+	FVector DefaultOffset = FVector::ZeroVector;
+	FVector AimOffset = FVector(0.f, 35.f, 10.f);
+
+	float BlendSpeed = 12.f;
+
+	float PitchMin = -35.f;
+	float PitchMax = 20.f;
 };

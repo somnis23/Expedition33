@@ -11,6 +11,7 @@
 //FTimerHandle EnemyAttackTimer;
 static const FName TAG_TurnEnd(TEXT("AttackEndPending"));
 static const FName TAG_Retreat(TEXT("EnemyRetreatPending"));
+static const FName TAG_HitConsume(TEXT("HITConsumePending"));
 ABattleUnitActor::ABattleUnitActor()
 {
     
@@ -38,14 +39,20 @@ void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
     }
 
     CurrentState = NewState;
-
-    
-        static_cast<int32>(CurrentState);
 }
+
 
 void ABattleUnitActor::OnTurnStart()
 {
     bIsMyTurn = true;
+    
+    if (UnitType != EBattleUnitType::Enemy)
+    {
+        RefillCostForTurn();   // ★ 플레이어 턴 시작 시 리필
+        GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ABattleUnitActor::ApplyTurnAnim);
+        return;
+    }
+    
     
     if (UnitType == EBattleUnitType::Enemy)
     {
@@ -263,6 +270,65 @@ void ABattleUnitActor::Tick(float DeltaTime)
             OnTurnEnd();
         }
     }
+    
+    if (Tags.Contains(TAG_HitConsume))
+    {
+        Tags.Remove(TAG_HitConsume);
+        
+        if (CharacterMeshComp)
+        {
+            if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Unit] ConsumeHit by Tag"));
+                Anim->ConsumeHit();   // bHitRequest = false
+                
+            }
+        }
+    }
+    
+    
+}
+
+bool ABattleUnitActor::SpendCost(int32 Amount)
+{
+    
+    if (!CanSpendCost(Amount)) return false;
+
+    Cost -= Amount;
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] SpendCost %d -> Cost=%d"), Amount, Cost);
+
+    // 코스트 0이면 턴 종료 (원작식)
+    if (Cost <= 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Unit] Cost empty -> EndTurn"));
+        OnTurnEnd();
+    }
+    return true;
+}
+
+void ABattleUnitActor::OnFreeAimHit(const FName HitBone)
+{
+    if (!CharacterMeshComp) return;
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] OnFreeAimHit %s bone=%s"),
+        *GetName(), *HitBone.ToString());
+
+    USkeletalMeshComponent* Mesh = GetCharacterMesh();
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit Mesh=%s"), *GetNameSafe(Mesh));
+    if (!Mesh) return;
+
+    UAnimInstance* Raw = Mesh->GetAnimInstance();
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit RawAnim=%s Class=%s"),
+        *GetNameSafe(Raw),
+        Raw ? *Raw->GetClass()->GetName() : TEXT("null"));
+
+    UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Raw);
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit CastBattleAnim=%s"), *GetNameSafe(Anim));
+    if (!Anim) return;
+
+    Anim->RequestHit();
+
+    
 }
 
 void ABattleUnitActor::StartEnemyWalk()

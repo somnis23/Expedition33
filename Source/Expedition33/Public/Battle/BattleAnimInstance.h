@@ -49,14 +49,45 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category= "Battle")
 	void RequestAttack();
+	
+	
+	virtual void NativeUpdateAnimation(float DeltaSeconds)override;
 
 protected:
 	UPROPERTY(BlueprintReadOnly)
 	bool bTurnStartRequest = false;
 	
+	int32 AttackRequestHoldFrames = 0;
+	
 	
 public:
 	UFUNCTION()
 	void OnAttackAnimFinished();
+	
+	
+	//free aim
+	UPROPERTY(BlueprintReadOnly,Category="FreeAim")
+	bool bFreeAim = false;
+	UPROPERTY(BlueprintReadOnly,Category="FreeAim")
+	bool bFreeAimShootRequest = false;
+	
+	UFUNCTION(BlueprintCallable , Category="FreeAim")
+	void SetFreeAim(bool bEnable);
+
+	UFUNCTION(BlueprintCallable, Category="FreeAim")
+	void RequestFreeAimShoot();
+	
+	UPROPERTY(BlueprintReadOnly , Category= "Hit")
+	bool bHitRequest = false;
+	
+	UFUNCTION(BlueprintCallable, Category="Hit")
+	void RequestHit();
+	
+	UFUNCTION(BlueprintCallable, Category="Hit")
+	void ConsumeHit();
+	
+	
+protected:
+	int32 FreeAimShootHoldFrames = 0;
 	
 };

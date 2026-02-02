@@ -146,8 +146,30 @@ public:
 	float RetreatElapsed = 0.f;
 	FVector RetreatStartLoc = FVector::ZeroVector;
 	
+	USkeletalMeshComponent* GetCharacterMesh() const { return CharacterMeshComp; }
 	
 	FTimerHandle EnemyPhaseTimer;
+	
+	//ap > 코스트 시스템
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Battle|Cost")
+	int32 MaxCost = 9;
+
+	UPROPERTY(BlueprintReadOnly, Category="Battle|Cost")
+	int32 Cost = 0;
+
+	UFUNCTION(BlueprintCallable, Category="Battle|Cost")
+	void RefillCostForTurn() { Cost = MaxCost; }
+
+	UFUNCTION(BlueprintCallable, Category="Battle|Cost")
+	bool CanSpendCost(int32 Amount) const { return bIsMyTurn && Cost >= Amount; }
+
+	UFUNCTION(BlueprintCallable, Category="Battle|Cost")
+	bool SpendCost(int32 Amount);
+	
+	UFUNCTION(BlueprintCallable)
+	void OnFreeAimHit(const FName HitBone);
+	
+	//void OnFreeAimHit(FName HitBone);
 	
 	void StartEnemyWalk();
 	void StartEnemyCharge();
