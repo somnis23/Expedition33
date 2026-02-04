@@ -12,11 +12,37 @@
 static const FName TAG_TurnEnd(TEXT("AttackEndPending"));
 static const FName TAG_Retreat(TEXT("EnemyRetreatPending"));
 static const FName TAG_HitConsume(TEXT("HITConsumePending"));
+static const FString PFX_Start(TEXT("DefStart_"));
+static const FString PFX_Open(TEXT("DefOpen_"));
+static const FString PFX_Hit(TEXT("DefHit_"));
+static const FName   TAG_End(TEXT("DefEnd"));
+
+static const FName TAG_ParryStart(TEXT("ParryStart"));
+static const FName TAG_ParryEnd(TEXT("ParryEnd"));
+
+static const FString TAG_DodgeOpen(TEXT("DodgeOpen_"));
+static const FString TAG_DodgeHit(TEXT("DodgeHit_"));
+static const FName TAG_DodgeEnd(TEXT("DodgeEnd"));
+
+// 숫자 파싱 
+static bool ParseIndex(const FString& Str, const FString& Prefix, int32& OutIndex)
+{
+    if (!Str.StartsWith(Prefix)) return false;
+    const FString NumStr = Str.Mid(Prefix.Len());
+    if (NumStr.IsEmpty()) return false;
+    OutIndex = FCString::Atoi(*NumStr);
+    return true;
+}
+
+
+
 ABattleUnitActor::ABattleUnitActor()
 {
     
-    PrimaryActorTick.bCanEverTick = true
-    ;
+    PrimaryActorTick.bCanEverTick = true;
+    CacheCharacterMesh();
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] BeginPlay %s Mesh=%s"),
+        *GetName(), *GetNameSafe(CharacterMeshComp));
 }
 
 void ABattleUnitActor::BeginPlay()
@@ -45,11 +71,23 @@ void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
 void ABattleUnitActor::OnTurnStart()
 {
     bIsMyTurn = true;
-    
+    ResetPatternState();
+    bParryWindowOpen = false;
     if (UnitType != EBattleUnitType::Enemy)
     {
-        RefillCostForTurn();   // ★ 플레이어 턴 시작 시 리필
+        
+        if (CharacterMeshComp)
+        {
+            if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+            {
+                Anim->ConsumePlayerHit(); // 피격 잔상 제거
+                Anim->SetFreeAim(false);  // FreeAim 잔상 제거
+            }
+        }
+        
+        RefillCostForTurn();   // 플레이어 턴 시작 시 리필
         GetWorld()->GetTimerManager().SetTimerForNextTick(this, &ABattleUnitActor::ApplyTurnAnim);
+       
         return;
     }
     
@@ -77,7 +115,7 @@ void ABattleUnitActor::OnTurnEnd()
 
     UE_LOG(LogTemp, Warning,
         TEXT("[BattleUnitActor] OnTurnEnd"));
-
+    
     if (UnitType == EBattleUnitType::Enemy)
     {
         SetActorLocation(EnemyHomeLocation);
@@ -220,7 +258,7 @@ void ABattleUnitActor::SetSelected(bool bSelected)
 void ABattleUnitActor::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
-
+    ConsumeAnimTags();
     // 1) Walk 이동 보간
     if (bIsMyTurn && UnitType == EBattleUnitType::Enemy && bWalking)
     {
@@ -248,6 +286,10 @@ void ABattleUnitActor::Tick(float DeltaTime)
         {
             bRetreating = false;
             SetActorLocation(EnemyHomeLocation); // 정확히 스냅
+            if (bIsMyTurn && UnitType == EBattleUnitType::Enemy)
+            {
+                OnTurnEnd();
+            }
         }
     }
 
@@ -284,6 +326,11 @@ void ABattleUnitActor::Tick(float DeltaTime)
                 
             }
         }
+    }
+    
+    if (bDodgeIntent && GetWorld()->TimeSeconds > DodgeIntentUntilTime)
+    {
+        bDodgeIntent = false;
     }
     
     
@@ -328,6 +375,279 @@ void ABattleUnitActor::OnFreeAimHit(const FName HitBone)
 
     Anim->RequestHit();
 
+    
+}
+
+void ABattleUnitActor::FaceTargetInstant(AActor* Target)
+{
+    if (!Target) return;
+    
+    const FVector From = GetActorLocation();
+    const FVector To = Target->GetActorLocation();
+    FVector Dir = (To - From);
+    Dir.Z = 0.f;
+    
+    if (!Dir.IsNearlyZero())
+    {
+        const FRotator LookYaw = Dir.Rotation();
+        SetActorRotation(FRotator(0.f , LookYaw.Yaw , 0.f));
+    }
+    
+}
+void ABattleUnitActor::PushAnimTag(FName Tag)
+{
+    if (Tag.IsNone()) return;
+    PendingAnimTags.Add(Tag); 
+    UE_LOG(LogTemp, Warning, TEXT("[Unit] PushAnimTag %s (%s)"),
+        *Tag.ToString(), *GetName());
+}
+
+void ABattleUnitActor::ConsumeAnimTags()
+{
+    if (PendingAnimTags.Num() == 0) return;
+    TArray<FName> Local = PendingAnimTags;
+    PendingAnimTags.Reset();
+    
+    for (const FName& T : Local)
+    {
+        HandleAnimTag(T);
+    }
+    
+}
+
+
+void ABattleUnitActor::HandleAnimTag(FName Tag)
+{
+    if (!CharacterMeshComp) return;
+
+    UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
+    if (!Anim) return;
+    
+    // 회피 파싱 
+    const FString TagStr = Tag.ToString();
+    if (TagStr.StartsWith("DodgeOpen_"))
+    {
+        bDodgeWindowOpen = true;
+        bDodgedThisBeat = false;   
+        TryConsumeDodgeIntent();   
+        return;
+    }
+    if (Tag == "DodgeEnd")
+    {
+        bDodgeWindowOpen = false;
+        bDodgedThisBeat = false;
+        return;
+    }
+    if (TagStr.StartsWith("DodgeHit_"))
+    {
+        if (bInvincible)
+        {
+            // 회피 성공 피드백(이펙트/사운드)만 주고 무시
+            return;
+        }
+
+        // 기존 Hit 처리로 이어가기
+        if (Anim)
+        {
+            Anim->PlayerHit();
+        }
+        return;
+    }
+    
+    
+    if (Tag == TAG_TurnEnd)
+    {
+        
+        OnTurnEnd();
+        return;
+    }
+    
+    if (Tag == TAG_ParryStart)
+    {
+        Anim->Notify_ParryStart();
+        return;
+    }
+    
+    if (Tag == TAG_ParryEnd)
+    {
+        Anim->Notify_ParryEnd();
+        return;
+    }
+    
+    if (Tag == TAG_Retreat)
+    {
+        StartEnemyRetreat();
+        return;
+    }
+    if (Tag == TAG_HitConsume)
+    {
+        // 추후 hitrequest 같은 bool 후처리 하는곳
+        Anim->ConsumePlayerHit();
+        Anim->ConsumeHit();
+        
+        
+        bParryWindowOpen = false;
+        bParryPrimedThisBeat = false;
+        bDodgedThisBeat = false;
+        return;
+        
+    }
+    if (Tag == TAG_End)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[Def] End"));
+        ResolvePatternEnd();
+        ResetPatternState();
+    }
+    
+    // 파싱 위치
+    const FString S = Tag.ToString();
+    int32 N = 0;
+    
+    if (ParseIndex(S , PFX_Start , N))
+    {
+        ResetPatternState();
+        BeatTotal  = N; // 총 타수 
+        BeatIndex = -1;
+        return;
+    }
+    
+    if (ParseIndex(S , PFX_Open , N))
+    {
+        BeatIndex =N;
+        bParryWindowOpen = true;
+        bParryPrimedThisBeat =false;
+        bDodgedThisBeat = false;
+        
+        return;
+    }
+    if (ParseIndex(S,PFX_Hit,N))
+    {
+        BeatIndex = N;
+        
+        if (bParryPrimedThisBeat)
+        {
+            ParrySuccessCount++;
+            UE_LOG(LogTemp, Warning, TEXT("[Def] PARRY SUCCESS %d/%d (idx=%d)"),
+                ParrySuccessCount, BeatTotal, BeatIndex);
+            //TODO > 패링 성공 
+        }
+        else if (bDodgedThisBeat)
+        {
+            bUsedDodge = true;
+            
+            //TODO >> 회피 성공
+        }
+        else
+        {
+            bPatternFailed =true;
+            UBattleAnimInstance* BattleAnim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
+            BattleAnim->PlayerHit();
+            //TODO >> 회피 , 패링 실패! 피격 !
+        }
+        bParryWindowOpen = false;
+        return;
+    }
+    
+}
+
+void ABattleUnitActor::TryConsumeDodgeIntent()
+{
+    if (!bDodgeWindowOpen) return;
+    if (!bDodgeIntent) return;
+    if (bDodgedThisBeat) return;
+
+    bDodgeIntent = false;
+    bDodgedThisBeat = true;
+
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        Anim->RequestDodge(); 
+    }
+
+    StartIFrame(0.25f);
+}
+
+void ABattleUnitActor::StartIFrame(float Duration)
+{
+    bInvincible = true;
+    GetWorld()->GetTimerManager().ClearTimer(IFrameTimerHandle);
+    GetWorld()->GetTimerManager().SetTimer(IFrameTimerHandle,
+        this, &ABattleUnitActor::EndIFrame, Duration, false);
+}
+
+void ABattleUnitActor::EndIFrame()
+{
+    bInvincible = false;
+}
+
+void ABattleUnitActor::TryParry()
+{
+    if (!bParryWindowOpen) return;
+    if (bParryPrimedThisBeat) return;
+
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        bool bAccepted = Anim->RequestParry();
+        UE_LOG(LogTemp, Warning, TEXT("[Player] TryParry -> RequestParry"));
+        if (bAccepted)
+        {
+            bParryPrimedThisBeat =true;
+        }
+    };
+    
+
+    
+    
+}
+
+void ABattleUnitActor::TryDodge()
+{
+    if (!bParryWindowOpen) return;
+    if (bParryPrimedThisBeat) return;
+    
+    bDodgedThisBeat = true;
+    DodgeIntentUntilTime = GetWorld()->TimeSeconds + DodgeIntentBufferSeconds;
+}
+
+void ABattleUnitActor::ResolvePatternEnd()
+{
+    const bool bAllParry = 
+        (BeatTotal > 0) && (!bPatternFailed) && (!bUsedDodge) && (ParrySuccessCount == BeatTotal);
+    
+    if (bAllParry)
+    {
+        // TODO 반격 GOGO
+        // 애니매이션 출력 
+        
+    }
+    
+}
+
+void ABattleUnitActor::ResetPatternState()
+{
+    bParryWindowOpen = false;
+    bParryPrimedThisBeat = false;
+    bDodgedThisBeat = false;
+    
+    BeatIndex = -1 ;
+    BeatTotal = 0;
+    ParrySuccessCount = 0;
+    
+    bParryPrimedThisBeat = false;
+    bUsedDodge = false;
+    
+}
+
+
+
+void ABattleUnitActor::CacheCharacterMesh()
+{
+    if (CharacterMeshComp && IsValid(CharacterMeshComp))
+    {
+        return;
+    }
+    // 첫 스켈레탈메시 잡기 
+    CharacterMeshComp = FindComponentByClass<USkeletalMeshComponent>();
     
 }
 

@@ -8,6 +8,15 @@ class ABattleUnitActor;
 class USpringArmComponent;
 class UCameraComponent;
 
+
+UENUM(BlueprintType)
+enum class EBattleCamMode : uint8
+{
+	Battle,        // 기본
+	TargetSelect,  // 타겟 선택(선택 적에 포커스)
+	FreeAim
+};
+
 UCLASS()
 class EXPEDITION33_API ABattleCameraActor : public AActor
 {
@@ -23,6 +32,15 @@ protected:
 public:
 	// === 초기화 ===
 	void Init(ABattleUnitActor* InPlayer, ABattleUnitActor* InEnemy);
+	
+	UPROPERTY(BlueprintReadOnly , Category="Cam")
+	EBattleCamMode CamMode;
+	UPROPERTY()
+	TWeakObjectPtr<ABattleUnitActor> FocusTarget;
+	
+	UFUNCTION(BlueprintCallable)
+	void SetTargetSelect(bool bEnable , ABattleUnitActor* InTarget);
+	
 	
 	UCameraComponent* GetCameraComponent() const {return Camera;}
 protected:
@@ -53,6 +71,11 @@ protected:
 	UPROPERTY(EditAnywhere, Category="BattleCamera")
 	float MaxDistance = 900.f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BattleFreeAim")
+	float FreeAimPivotZ = 140.f;   // ← 여기 중요 (130~170 사이 추천)
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="BattleFreeAim")
+	float BattlePivotZ = 120.f;
 	
 public:
 	
@@ -67,7 +90,7 @@ public:
 	
 	void UpdateBattleCam(float DT);
 	void UpdateFreeAimCam(float DT);
-	
+	void UpdateTargetSelectCam(float DT);
 	
 private:
 	void UpdateCameraTransform();
@@ -75,6 +98,7 @@ private:
 	TWeakObjectPtr<AActor> Anchor;
 
 	bool bFreeAim = false;
+	bool bFreeAimJustEntered = false;
 
 	// 현재/목표 값(보간용)
 	float TargetFOV;
@@ -89,10 +113,10 @@ private:
 	float AimFOV = 60.f;
 
 	float DefaultArm = 380.f;
-	float AimArm = 260.f;
+	float AimArm = 320.f;
 
 	FVector DefaultOffset = FVector::ZeroVector;
-	FVector AimOffset = FVector(0.f, 35.f, 10.f);
+	FVector AimOffset = FVector(0.f, 80.f, 10.f);
 
 	float BlendSpeed = 12.f;
 

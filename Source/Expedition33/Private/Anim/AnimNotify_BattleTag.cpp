@@ -3,12 +3,55 @@
 
 #include "Anim/AnimNotify_BattleTag.h"
 
+#include <ThirdParty/ShaderConductor/ShaderConductor/External/DirectXShaderCompiler/include/dxc/DXIL/DxilConstants.h>
+
+#include "BattleGameMode.h"
 #include "BattleUnitActor.h"
 
 void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequenceBase* Animation)
 {
 	if (!MeshComp || TagToAdd.IsNone()) return;
+	UE_LOG(LogTemp, Warning, TEXT("[NotifyTag] %s on %s"),
+	*TagToAdd.ToString(),
+	*GetNameSafe(MeshComp ? MeshComp->GetOwner() : nullptr));
+	
+	const FString TagStr = TagToAdd.ToString();
+	const bool bIsDefTag = 
+		TagStr.StartsWith(TEXT("DefStart_")) ||
+		TagStr.StartsWith(TEXT("DefOpen_"))  ||
+		TagStr.StartsWith(TEXT("DefHit_"))   ||
+		TagToAdd == FName(TEXT("DefEnd"));
+	
+	const bool bIsDodgeTag =
+	TagStr.StartsWith("DodgeOpen_") ||
+	TagStr.StartsWith("DodgeHit_")  ||
+	TagToAdd == "DodgeEnd";
 
+	
+	if (bIsDefTag)
+	{
+		if (UWorld* W = MeshComp->GetWorld())
+		{
+			if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+			{
+				if (ABattleUnitActor* PlayerUnit = GM->GetBattlePlayerUnit())
+				{
+					PlayerUnit->PushAnimTag(TagToAdd);
+					return;
+				}
+				if (bIsDodgeTag)
+				{
+					GM->GetBattlePlayerUnit()->PushAnimTag(TagToAdd);
+					return;
+				}
+			}
+		}
+	}
+	
+	
+	
+	
+	
 	// 1 Mesh Owner에서 바로 찾기
 	AActor* Owner = MeshComp->GetOwner();
 	for (AActor* Cursor = Owner; Cursor; Cursor = Cursor->GetAttachParentActor())
@@ -16,7 +59,8 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 		if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(Cursor))
 		{
 			UE_LOG(LogTemp , Warning ,TEXT("ANIMnotify  :: mesh owner"));
-			Unit->Tags.AddUnique(TagToAdd);
+			//Unit->Tags.AddUnique(TagToAdd);
+			Unit->PushAnimTag(TagToAdd);
 			return;
 		}
 	}
@@ -29,7 +73,8 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 			if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(Pawn->GetOwner()))
 			{
 				UE_LOG(LogTemp , Warning ,TEXT("ANIMnotify  :: mesh pawn"));
-				Unit->Tags.AddUnique(TagToAdd);
+				//Unit->Tags.AddUnique(TagToAdd);
+				Unit->PushAnimTag(TagToAdd);
 				return;
 			}
 		}

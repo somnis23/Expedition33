@@ -26,7 +26,9 @@ protected:
 	
 public:
 	ABattleTurnManager* GetTurnManager() const {return TurnManager;}
-
+	
+	UFUNCTION(BlueprintCallable, Category="Battle")
+	ABattleUnitActor* GetBattlePlayerUnit() const { return BattlePlayer; }
 protected:
 	// === Spawn ===
 	void SpawnPlayer();

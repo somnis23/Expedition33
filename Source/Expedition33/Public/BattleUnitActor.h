@@ -21,7 +21,14 @@ enum class EBattleUnitState : uint8
 	Hit,
 	Dead
 };
-
+UENUM(BlueprintType)
+enum class EDefenseResult : uint8
+{
+	None,
+	Parry,
+	Dodge,
+	Fail
+};
 class USkeletalMeshComponent;
 class UBattleAnimInstance;
 
@@ -33,23 +40,24 @@ class EXPEDITION33_API ABattleUnitActor : public AActor
 public:
 	ABattleUnitActor();
 public:
-	// PC가 "내 턴인지" 확인할 수 있게
+	// PC가 내 턴인지 확인할 수 있게
 	FORCEINLINE bool IsMyTurn() const { return bIsMyTurn; }
 
 	// 유닛 타입 판정
 	FORCEINLINE bool IsPlayerUnit() const { return UnitType == EBattleUnitType::Player; }
 	FORCEINLINE bool IsEnemyUnit()  const { return UnitType == EBattleUnitType::Enemy; }
 
-	// 생존 판정(프로젝트 규칙에 맞게 수정 가능)
+	// 생존 판정(
 	FORCEINLINE bool IsAlive() const { return CurrentState != EBattleUnitState::Dead; }
 
 	// 타겟 지정/조회
 	FORCEINLINE void SetCurrentTarget(ABattleUnitActor* InTarget) { SelectedTarget = InTarget; }
 	FORCEINLINE ABattleUnitActor* GetCurrentTarget() const { return SelectedTarget; }
 
-	// 커맨드 상태 지정/조회(선택모드 유지에 필요)
+	// 커맨드 상태 지정/조회
 	FORCEINLINE void SetCommandState(EBattleCommandState NewState) { CommandState = NewState; }
 	FORCEINLINE EBattleCommandState GetCommandState() const { return CommandState; }
+	
 	
 	
 protected:
@@ -95,6 +103,10 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void EnterAttackMode();
 	
+	
+	
+	
+	
 	void ConfirmAttack();
 	
 	void ApplyTurnAnim();
@@ -133,7 +145,6 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="EnemyTurn")
 	EEnemyAttackType PlannedAttack = EEnemyAttackType::Fire;
 	
-	
 	// 원위치 복귀용 위치
 	FVector EnemyHomeLocation = FVector::ZeroVector;
 	
@@ -151,6 +162,7 @@ public:
 	FTimerHandle EnemyPhaseTimer;
 	
 	//ap > 코스트 시스템
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Battle|Cost")
 	int32 MaxCost = 9;
 
@@ -168,6 +180,62 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void OnFreeAimHit(const FName HitBone);
+	
+	UFUNCTION()
+	void FaceTargetInstant(AActor* Target);
+	
+	
+	//패링 , 회피 
+public:
+	UPROPERTY()
+	TArray<FName> PendingAnimTags;
+	UPROPERTY(BlueprintReadOnly,Category="Dodge")
+	bool bDodgeWindowOpen = false;
+	UPROPERTY(BlueprintReadOnly,Category="Dodge")
+	bool bDodgedThisBeat  = false;
+	
+	UPROPERTY(BlueprintReadOnly, Category="Dodge")
+	bool bInvincible = false;
+
+	FTimerHandle IFrameTimerHandle;
+	
+	bool bDodgeIntent = false;
+	float DodgeIntentUntilTime = 0.f;
+	float DodgeIntentBufferSeconds = 0.25f;
+	
+	//패링 패턴상태 
+	bool bParryWindowOpen = false;
+	bool bParryPrimedThisBeat = false;
+	
+	
+	int32 BeatIndex = 0;
+	int32 BeatTotal = 0;
+	int32 ParrySuccessCount = 0;
+	
+	bool bPatternFailed = false;
+	bool bUsedDodge = false;
+	
+	
+	//회피 
+	void TryConsumeDodgeIntent();
+	void StartIFrame(float Duration);
+	void EndIFrame();
+	
+	
+	//입력 호출
+	void TryParry();
+	void TryDodge();
+	//판정
+	void ResolvePatternEnd();
+	void ResetPatternState();
+	
+	void PushAnimTag(FName Tag);
+	void ConsumeAnimTags();
+	void HandleAnimTag(FName Tag);
+	
+	UFUNCTION(BlueprintCallable, Category="Battle")
+	void CacheCharacterMesh();
+	
 	
 	//void OnFreeAimHit(FName HitBone);
 	

@@ -26,7 +26,9 @@ void ABattlePlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ABattlePlayerController::OnFreeAimFire);
     InputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &ABattlePlayerController::OnFreeAimStart);
     InputComponent->BindKey(EKeys::RightMouseButton, IE_Released, this, &ABattlePlayerController::OnFreeAimEnd);
-    
+    // 키바인딩 E >> 패링
+    InputComponent->BindKey(EKeys::E , IE_Released, this, &ABattlePlayerController::OnParry);
+    InputComponent->BindKey(EKeys::Q,IE_Pressed, this, &ABattlePlayerController::OnDodge);
 }
 
 ABattleCameraActor* ABattlePlayerController::GetBattleCam()
@@ -90,6 +92,9 @@ void ABattlePlayerController::ClearEnemySelection()
     {
         if (E) E->SetSelected(false);
     }
+    
+        
+    
 }
 
 void ABattlePlayerController::ApplyEnemySelection()
@@ -98,23 +103,41 @@ void ABattlePlayerController::ApplyEnemySelection()
     SelectedEnemyIndex = (SelectedEnemyIndex + CachedEnemies.Num()) % CachedEnemies.Num();
 
     ClearEnemySelection();
-    if (CachedEnemies[SelectedEnemyIndex])
+    ABattleUnitActor* NewTarget = CachedEnemies[SelectedEnemyIndex];
+    NewTarget->SetSelected(true);
+    UE_LOG(LogTemp, Warning, TEXT("[PC] Target Selected = %s"), *NewTarget->GetName());
+
+    //  타겟선택 모드에서만 카메라 연출
+    if (InputMode == EBattleInputMode::TargetSelect)
+    {
+        if (ABattleCameraActor* Cam = GetBattleCam())
+        {
+            Cam->SetTargetSelect(true, NewTarget);
+        }
+    }
+    
+    
+    /*if (CachedEnemies[SelectedEnemyIndex])
     {
         CachedEnemies[SelectedEnemyIndex]->SetSelected(true);
         UE_LOG(LogTemp, Warning, TEXT("[PC] Target Selected = %s"), *CachedEnemies[SelectedEnemyIndex]->GetName());
-    }
+    }*/
 }
 
 void ABattlePlayerController::OnPressS_AttackMode()
 {
     if (!IsPlayerTurn()) return;
-
     if (InputMode == EBattleInputMode::FreeAim) return;
-    
+
+    ABattleCameraActor* Cam = GetBattleCam();
+    UE_LOG(LogTemp, Warning, TEXT("[PC] S Pressed Cam=%s ViewTarget=%s"),
+        *GetNameSafe(Cam), *GetNameSafe(GetViewTarget()));
+
     if (InputMode == EBattleInputMode::TargetSelect)
     {
         InputMode = EBattleInputMode::None;
         ClearEnemySelection();
+        if (Cam) Cam->SetTargetSelect(false, nullptr);
         UE_LOG(LogTemp, Warning, TEXT("[PC] Attack Select Mode OFF"));
         return;
     }
@@ -128,8 +151,8 @@ void ABattlePlayerController::OnPressS_AttackMode()
 
     InputMode = EBattleInputMode::TargetSelect;
     SelectedEnemyIndex = 0;
-    ApplyEnemySelection();
 
+    ApplyEnemySelection(); // 여기서 SetTargetSelect(true,target) 들어감
     UE_LOG(LogTemp, Warning, TEXT("[PC] Attack Select Mode ON"));
 }
 
@@ -165,13 +188,22 @@ void ABattlePlayerController::OnPressF_ConfirmTarget()
 
     if (!Attacker || !Target) return;
 
+    if (ABattleCameraActor* Cam = GetBattleCam())
+    {
+        Cam->SetTargetSelect(false, nullptr);   // 내부에서 CamMode=Battle 로 바꾸도록
+        
+    }
+    
     // 확정: 선택 해제 + 모드 종료
     ClearEnemySelection();
     InputMode = EBattleInputMode::None;
 
     UE_LOG(LogTemp, Warning, TEXT("[PC] Confirm Target=%s -> RequestAttack"), *Target->GetName());
-
+    // 타겟 위치 찾기
     Attacker->SetCurrentTarget(Target); 
+    //타겟 바라보기
+    Attacker->FaceTargetInstant(Target);
+    //공격 
     Attacker->RequestAttack();          
 }
 
@@ -182,6 +214,7 @@ void ABattlePlayerController::OnFreeAimStart()
     if (InputMode == EBattleInputMode::TargetSelect)
     {
         ClearEnemySelection();
+        if (BattleCam) BattleCam->SetTargetSelect(false, nullptr);
     }
     InputMode = EBattleInputMode::FreeAim;
     AimedUnit = nullptr;
@@ -228,7 +261,7 @@ void ABattlePlayerController::OnFreeAimEnd()
     // 1) 카메라 FreeAim OFF
     if (ABattleCameraActor* Cam = GetBattleCam())
     {
-        BattleCam->SetFreeAim(false);
+        Cam->SetFreeAim(false);
     }
     
     
@@ -254,17 +287,6 @@ void ABattlePlayerController::OnFreeAimEnd()
 
 void ABattlePlayerController::OnFreeAimFire()
 {
-    
-    
-  
-
-   
-    
-
-   
-
-   
-    
     
     if (InputMode != EBattleInputMode::FreeAim) return;
     if (!IsPlayerTurn()) return;
@@ -309,6 +331,44 @@ void ABattlePlayerController::OnFreeAimFire()
     // - ImpactPoint에 FX
 }
 
+void ABattlePlayerController::OnParry()
+{
+    ABattleUnitActor* PlayerUnit = GetPlayerUnit();
+    
+    if (!PlayerUnit || !PlayerUnit->IsAlive()) return;
+    
+    if (!PlayerUnit->bParryWindowOpen) return;
+    
+    PlayerUnit->TryParry();
+
+}
+
+void ABattlePlayerController::OnDodge()
+{
+    
+    ABattleUnitActor* PlayerUnit = GetPlayerUnit();
+    if (!PlayerUnit || !PlayerUnit->IsAlive()) return;
+
+    if (!PlayerUnit->bParryWindowOpen)
+    {
+        return; 
+    }
+    PlayerUnit->TryDodge();
+}
+
+ABattleUnitActor* ABattlePlayerController::GetPlayerUnit() const
+{
+    if (UWorld* World = GetWorld())
+    {
+        if (ABattleGameMode* GM = World->GetAuthGameMode<ABattleGameMode>())
+        {
+            return GM->GetBattlePlayerUnit();
+        }
+    }
+    
+    return nullptr;
+}
+
 void ABattlePlayerController::PlayerTick(float DeltaTime)
 {
     Super::PlayerTick(DeltaTime);
@@ -330,11 +390,14 @@ void ABattlePlayerController::PlayerTick(float DeltaTime)
         }
     }*/
     
-    if (InputMode != EBattleInputMode::FreeAim) return;
-    if (!IsPlayerTurn()) return;
-
     
 
+    if (!IsPlayerTurn() && InputMode == EBattleInputMode::FreeAim)
+    {
+        OnFreeAimEnd(); // 내부에서 InputMode None, Anim->SetFreeAim(false), UI 정리까지 함
+    }
+    if (InputMode != EBattleInputMode::FreeAim) return;
+    if (!IsPlayerTurn()) return;
     float DX = 0.f, DY = 0.f;
     GetInputMouseDelta(DX, DY);
 
@@ -351,7 +414,7 @@ void ABattlePlayerController::PlayerTick(float DeltaTime)
     const float YawDelta   = DX * AimYawSensitivity * SignX;
     const float PitchDelta = DY * AimPitchSensitivity * SignY;
 
-    if (ABattleCameraActor* Cam = Cast<ABattleCameraActor>(GetViewTarget()))
+    if (ABattleCameraActor* Cam = GetBattleCam())
     {
         Cam->AddAimInput(YawDelta, PitchDelta);
     }

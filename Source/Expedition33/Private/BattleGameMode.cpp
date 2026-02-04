@@ -139,5 +139,10 @@ void ABattleGameMode::SpawnBattleCamera()
     {
         PC->SetViewTargetWithBlend(Cam, 0.5f);
     }
+    if (ABattlePlayerController* BPC = Cast<ABattlePlayerController>(PC))
+    {
+       BPC->SetBattleCam(Cam);
+        UE_LOG(LogTemp, Warning, TEXT("[GM] BattleCam injected to PC: %s"), *GetNameSafe(Cam));
+    }
     
 }

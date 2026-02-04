@@ -16,7 +16,8 @@ void UAnimNotify_AttackEnd::Notify(
 	//  1) Mesh Owner가 Unit이면 그걸로 끝
 	if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(MeshComp->GetOwner()))
 	{
-		Unit->Tags.AddUnique(FName("AttackEndPending"));
+		//Unit->Tags.AddUnique(FName("AttackEndPending"));
+		Unit->PushAnimTag(FName("AttackEndPending"));
 		return;
 	}
 
@@ -30,6 +31,7 @@ void UAnimNotify_AttackEnd::Notify(
 
 	if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(Pawn->GetOwner()))
 	{
-		Unit->Tags.AddUnique(FName("AttackEndPending"));
+		//Unit->Tags.AddUnique(FName("AttackEndPending"));
+		Unit->PushAnimTag(FName("AttackEndPending"));
 	}
 }

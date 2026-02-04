@@ -53,6 +53,18 @@ void UBattleAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Super::NativeUpdateAnimation(DeltaSeconds);
 	
 	
+	// 카운터 변화 감지 -> 1프레임 펄스 생성
+	if (HitCounter != HitCounterSeen)
+	{
+		bHitEdge = true;
+		HitCounterSeen = HitCounter;
+	}
+	else
+	{
+		bHitEdge = false;
+	}
+	
+	
 	if (FreeAimShootHoldFrames > 0)
 	{
 		--FreeAimShootHoldFrames;
@@ -61,17 +73,42 @@ void UBattleAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			bFreeAimShootRequest = false;
 		}
 	}
+	if (ParryRequestHoldFrames > 0)
+	{
+		--ParryRequestHoldFrames;
+		if (ParryRequestHoldFrames == 0)
+		{
+			bParryRequest = false; // 자동 소멸 
+		}
+	}
+	
+	if (PlayerHitHoldFrames > 0)
+	{
+		--PlayerHitHoldFrames;
+		if (PlayerHitHoldFrames == 0)
+		{
+			bPlayerHit = false; // 자동 소멸
+		}
+	}
+	
 	
 	if (AttackRequestHoldFrames > 0)
 	{
 		--AttackRequestHoldFrames;
 		if (AttackRequestHoldFrames == 0)
 		{
-			bAttackRequest = false; //  두 프레임 지나고 끔
+			bAttackRequest = false; //  자동 소멸 
 		}
 	}
-
-	// TurnStart도 같은 이슈 가능하면 똑같이 처리 추천
+	if (DodgeRequestHoldFrames > 0)
+	{
+		--DodgeRequestHoldFrames;
+		if (DodgeRequestHoldFrames == 0)
+		{
+			bDodgeRequest = false;
+		}
+	}
+	
 	if (bTurnStartRequest)
 	{
 		bTurnStartRequest = false;
@@ -122,8 +159,8 @@ void UBattleAnimInstance::RequestFreeAimShoot()
 
 void UBattleAnimInstance::RequestHit()
 {
-	bHitRequest = true;
-	UE_LOG(LogTemp, Warning, TEXT("[Anim] Hit Requested"));
+	HitCounter++;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] RequestHit counter=%d"), HitCounter);
 	
 }
 
@@ -132,3 +169,57 @@ void UBattleAnimInstance::ConsumeHit()
 	bHitRequest = false;
 	
 }
+
+void UBattleAnimInstance::PlayerHit()
+{
+	if (bPlayerHit) return;
+	bPlayerHit =true;
+	PlayerHitHoldFrames =2;
+}
+
+void UBattleAnimInstance::ConsumePlayerHit()
+{
+	bPlayerHit = false;
+	
+}
+
+bool UBattleAnimInstance::RequestParry()
+{
+	if (bParryPlaying) return false;
+	if (bParryRequest) return false;
+	bParryRequest = true;
+	ParryRequestHoldFrames = 2;
+	return true;
+}
+
+void UBattleAnimInstance::ConsumeParry()
+{
+	bParryRequest = false;
+}
+
+void UBattleAnimInstance::Notify_ParryStart()
+{
+	bParryPlaying = true;
+	bParryRequest = false; // 진입 즉시 소비(핵심)
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Parry Start"));
+}
+
+void UBattleAnimInstance::Notify_ParryEnd()
+{
+	
+	bParryPlaying = false;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Parry End"));
+}
+
+bool UBattleAnimInstance::RequestDodge()
+{
+	if (bDodgePlaying) return false;
+	if (bDodgeRequest) return false;
+
+	bDodgeRequest = true;
+	DodgeRequestHoldFrames = 2;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Dodge Requested"));
+	return true;
+}
+
+

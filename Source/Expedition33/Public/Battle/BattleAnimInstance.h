@@ -86,8 +86,59 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Hit")
 	void ConsumeHit();
 	
+	UFUNCTION(BlueprintCallable, Category="Hit")
+	void PlayerHit();
+	
+	UFUNCTION(BlueprintCallable, Category="Hit")
+	void ConsumePlayerHit();
+	
+	//parry
+	UPROPERTY(BlueprintReadOnly , Category= "Parry")
+	bool bParryRequest = false;
+	
+	UPROPERTY(BlueprintReadOnly,Category= "Parry")
+	bool bParryPlaying = false;
+	
+	UFUNCTION(BlueprintCallable)
+	bool RequestParry();
+	
+	UFUNCTION(BlueprintCallable)
+	void ConsumeParry();
+	
+	UFUNCTION(BlueprintCallable)
+	void Notify_ParryStart();
+	
+	UFUNCTION(BlueprintCallable)
+	void Notify_ParryEnd();
+	
+	//Hit
+	UPROPERTY(BlueprintReadOnly,Category="Hit")
+	int32 HitCounter = 0;
+	
+	UPROPERTY(BlueprintReadOnly , Category="Hit")
+	int32 HitCounterSeen = 0;
+	
+	UPROPERTY(BlueprintReadOnly , Category="Hit")
+	bool bHitEdge = false;
+	
+	UPROPERTY(BlueprintReadWrite , Category= "Hit")
+	bool bPlayerHit = false;
+	
+	//dodge / 회피
+	UPROPERTY(BlueprintReadOnly,Category= "Dodge")
+	bool bDodgeRequest = false;
+	UPROPERTY(BlueprintReadOnly,Category= "Dodge")
+	bool bDodgePlaying = false;
+	
+	UFUNCTION(BlueprintCallable)
+	bool RequestDodge();
 	
 protected:
 	int32 FreeAimShootHoldFrames = 0;
 	
+	int32 ParryRequestHoldFrames = 0;
+	
+	int32 PlayerHitHoldFrames = 0;
+	
+	int32 DodgeRequestHoldFrames = 0;
 };

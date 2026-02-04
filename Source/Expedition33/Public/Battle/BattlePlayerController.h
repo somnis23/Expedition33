@@ -32,7 +32,8 @@ class EXPEDITION33_API ABattlePlayerController : public APlayerController
 public:
 	virtual void SetupInputComponent() override;
 	
-
+	UFUNCTION()
+	void SetBattleCam(ABattleCameraActor* InCam) {BattleCam = InCam;}
 	
 	
 	UPROPERTY()
@@ -105,5 +106,11 @@ private:
 	void OnFreeAimEnd();
 	
 	void OnFreeAimFire();
+	
+	void OnParry();
+	void OnDodge();
+	ABattleUnitActor* GetPlayerUnit()const;
+	
+	
 	
 };
