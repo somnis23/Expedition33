@@ -23,6 +23,8 @@ void ABattleTurnManager::Initialize(const TArray<ABattleUnitActor*>& InUnits)
 void ABattleTurnManager::StartBattle()
 {
 	if (TurnQueue.Num() == 0) return;
+
+	BrodCastTurnState();
 	
 	TurnQueue[CurrentTurnIndex]->OnTurnStart();
 	
@@ -30,8 +32,6 @@ void ABattleTurnManager::StartBattle()
 
 void ABattleTurnManager::NextTurn()
 {
-	
-
 	if (TurnQueue.Num() == 0) return;
 
 	
@@ -40,6 +40,8 @@ void ABattleTurnManager::NextTurn()
 	UE_LOG(LogTemp, Warning, TEXT("[TurnManager] NextTurn -> %s"),
 		*GetNameSafe(TurnQueue[CurrentTurnIndex]));
 
+	BrodCastTurnState();
+	
 	TurnQueue[CurrentTurnIndex]->OnTurnStart();
 	
 }
@@ -61,6 +63,28 @@ void ABattleTurnManager::EndTurn(ABattleUnitActor* Unit)
 		return;
 
 	NextTurn();
+	
+}
+
+void ABattleTurnManager::BrodCastTurnState()
+{
+	ABattleUnitActor* Cur = GetCurrentUnit();
+	if (!Cur) return;
+	
+	const EBattleTurnState State =
+		Cur->IsEnemyUnit() ? EBattleTurnState::EnemyTurn : EBattleTurnState::PlayerTurn;
+	
+	for (ABattleUnitActor* Unit : TurnQueue)
+	{
+		if (!Unit ) continue;
+		
+		const bool bMyTurn = (Unit == Cur);
+		
+		Unit->OnTurnStateChanged(State, bMyTurn, false);
+		
+		
+	}
+	
 	
 }
 

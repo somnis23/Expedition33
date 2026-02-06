@@ -1,5 +1,6 @@
 #include "BattleGameMode.h"
 #include "BattleUnitActor.h"
+#include "ExpeditionGameInstance.h"
 #include "Battle/BattleCameraActor.h"
 #include "Battle/BattlePlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -20,6 +21,14 @@ void ABattleGameMode::BeginPlay()
     UE_LOG(LogTemp, Error,
     TEXT("### GAMEMODE CLASS = %s ###"),
     *GetClass()->GetName());
+    
+    
+    if (UExpeditionGameInstance* GI = GetGameInstance<UExpeditionGameInstance>())
+    {
+        GI->PlayBGM(GI->BattleBGM , 0.5f);
+        
+    }
+    
     
     
     SpawnPlayer();
@@ -53,17 +62,6 @@ void ABattleGameMode::BeginPlay()
     ABattlePlayerController* PC = Cast<ABattlePlayerController>
     (UGameplayStatics::GetPlayerController(this,0));
     
-    /*if (PC)
-    {
-        PC->SetControlledUnit(BattlePlayer);
-        
-        TArray<ABattleUnitActor*> Enemies;
-        Enemies.Add(BattleEnemy);
-        
-        PC->SetEnemyUnits(Enemies);
-        
-        
-    }*/
 }
 
 void ABattleGameMode::SpawnPlayer()

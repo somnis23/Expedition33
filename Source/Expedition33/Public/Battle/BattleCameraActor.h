@@ -38,6 +38,8 @@ public:
 	UPROPERTY()
 	TWeakObjectPtr<ABattleUnitActor> FocusTarget;
 	
+	UCameraComponent* GetBattleCameraComponent() const { return Camera; } 
+	
 	UFUNCTION(BlueprintCallable)
 	void SetTargetSelect(bool bEnable , ABattleUnitActor* InTarget);
 	
@@ -50,6 +52,10 @@ protected:
 
 	UPROPERTY(VisibleAnywhere)
 	UCameraComponent* Camera;
+
+	UPROPERTY(BlueprintReadOnly, Category="Camera")
+	bool bCinematicOverride = false;
+
 
 	// === Targets ===
 	UPROPERTY()
@@ -91,6 +97,11 @@ public:
 	void UpdateBattleCam(float DT);
 	void UpdateFreeAimCam(float DT);
 	void UpdateTargetSelectCam(float DT);
+	
+	UFUNCTION(BlueprintCallable, Category="Camera")
+	void SetCinematicOverride(bool bEnable) { bCinematicOverride = bEnable; }
+	UFUNCTION(BlueprintCallable, Category="Camera")
+	bool IsCinematicOverride() const { return bCinematicOverride; }
 	
 private:
 	void UpdateCameraTransform();

@@ -24,6 +24,8 @@ static const FString TAG_DodgeOpen(TEXT("DodgeOpen_"));
 static const FString TAG_DodgeHit(TEXT("DodgeHit_"));
 static const FName TAG_DodgeEnd(TEXT("DodgeEnd"));
 
+
+
 // 숫자 파싱 
 static bool ParseIndex(const FString& Str, const FString& Prefix, int32& OutIndex)
 {
@@ -70,6 +72,10 @@ void ABattleUnitActor::SetBattleState(EBattleUnitState NewState)
 
 void ABattleUnitActor::OnTurnStart()
 {
+    //패링 카운트 초기화
+    PendingAnimTags.Reset();
+    Tags.Reset();
+    
     bIsMyTurn = true;
     ResetPatternState();
     bParryWindowOpen = false;
@@ -94,7 +100,17 @@ void ABattleUnitActor::OnTurnStart()
     
     if (UnitType == EBattleUnitType::Enemy)
     {
-        //  턴 시작 위치를 원위치로 저장
+        bWalking = false;
+        WalkElapsed = 0.f;
+      
+        
+        
+        bRetreating = false;
+        RetreatElapsed = 0.f;
+
+       
+        GetWorldTimerManager().ClearTimer(EnemyPhaseTimer);
+        
         EnemyHomeLocation = GetActorLocation();
 
         UE_LOG(LogTemp, Warning, TEXT("[Enemy] TurnStart Home=(%.1f, %.1f, %.1f)"),
@@ -111,6 +127,20 @@ void ABattleUnitActor::OnTurnStart()
 
 void ABattleUnitActor::OnTurnEnd()
 {
+    UE_LOG(LogTemp, Warning, TEXT("[EndTurn] %s Phase=%d"), *GetName(), (int32)EnemyPhaseRuntime);
+    PendingAnimTags.Reset();
+    
+    UE_LOG(LogTemp, Warning, TEXT("[BattleUnitActor] OnTurnEnd called on %s | bIsMyTurn=%d"),
+        *GetNameSafe(this), bIsMyTurn ? 1 : 0);
+
+    if (!bIsMyTurn)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BattleUnitActor] OnTurnEnd ignored (already ended) on %s"),
+            *GetNameSafe(this));
+        return;
+    }
+    
+    
     bIsMyTurn = false;
 
     UE_LOG(LogTemp, Warning,
@@ -118,6 +148,15 @@ void ABattleUnitActor::OnTurnEnd()
     
     if (UnitType == EBattleUnitType::Enemy)
     {
+        GetWorldTimerManager().ClearTimer(EnemyPhaseTimer);
+        CleanupEnemyTurnArtifacts(); 
+        bWalking = false;
+        WalkElapsed = 0.f;
+
+
+        bRetreating = false;
+        RetreatElapsed = 0.f;
+
         SetActorLocation(EnemyHomeLocation);
         SetEnemyPhaseOnAnim(EEnemyTurnPhase::Idle);
     }
@@ -273,10 +312,11 @@ void ABattleUnitActor::Tick(float DeltaTime)
             StartEnemyCharge();
         }
     }
-
+    
     // 2) Retreat 이동 보간(원위치 복귀)
     if (bIsMyTurn && UnitType == EBattleUnitType::Enemy && bRetreating)
     {
+        UE_LOG(LogTemp, Warning, TEXT("[Enemy] Retreat finished -> OnTurnEnd (%s)"), *GetName())
         RetreatElapsed += DeltaTime;
         const float A = FMath::Clamp(RetreatElapsed / EnemyRetreatDuration, 0.f, 1.f);
 
@@ -293,7 +333,7 @@ void ABattleUnitActor::Tick(float DeltaTime)
         }
     }
 
-    // 3) 공격 끝 → Retreat 시작(태그)
+    /*// 3) 공격 끝 → Retreat 시작(태그)
     if (Tags.Contains(TAG_Retreat))
     {
         Tags.Remove(TAG_Retreat);
@@ -301,8 +341,9 @@ void ABattleUnitActor::Tick(float DeltaTime)
         {
             StartEnemyRetreat();
         }
-    }
+    }*/
 
+    /*
     // 4) 점프백 끝 → 턴 종료(태그)
     if (Tags.Contains(TAG_TurnEnd))
     {
@@ -312,6 +353,7 @@ void ABattleUnitActor::Tick(float DeltaTime)
             OnTurnEnd();
         }
     }
+    */
     
     if (Tags.Contains(TAG_HitConsume))
     {
@@ -394,6 +436,25 @@ void ABattleUnitActor::FaceTargetInstant(AActor* Target)
     }
     
 }
+
+bool ABattleUnitActor::IsEnemyActingNow()
+{
+    if (UWorld* W = GetWorld())
+    {
+        if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+        {
+            if (ABattleTurnManager* TM = GM->GetTurnManager())
+            {
+                if (ABattleUnitActor* Acting = TM->GetCurrentUnit())
+                {
+                    return Acting->IsEnemyUnit() && Acting->IsMyTurn();
+                }
+            }
+        }
+    }
+    return false;
+}
+
 void ABattleUnitActor::PushAnimTag(FName Tag)
 {
     if (Tag.IsNone()) return;
@@ -422,132 +483,407 @@ void ABattleUnitActor::HandleAnimTag(FName Tag)
 
     UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
     if (!Anim) return;
-    
-    // 회피 파싱 
-    const FString TagStr = Tag.ToString();
-    if (TagStr.StartsWith("DodgeOpen_"))
+
+    // ------------------------------------------------------------
+    // 0) 턴 경계에서 늦게 도착한 태그 필터링 (핵심)
+    // ------------------------------------------------------------
+
+    // (A) Enemy의 Retreat/TurnEnd는 "Enemy 자기 턴일 때만" 의미가 있다.
+    if (UnitType == EBattleUnitType::Enemy)
     {
-        bDodgeWindowOpen = true;
-        bDodgedThisBeat = false;   
-        TryConsumeDodgeIntent();   
+        const bool bLateEnemyEndTag =
+            (!bIsMyTurn) && (Tag == TAG_Retreat || Tag == TAG_TurnEnd);
+
+        const bool bIsRetreatTag = (Tag == TAG_Retreat);  // EnemyRetreatPending
+        const bool bIsTurnEndTag = (Tag == TAG_TurnEnd);  // AttackEndPending
+
+        if (bIsRetreatTag)
+        {
+            const bool bOk =
+                (EnemyPhaseRuntime == EEnemyTurnPhase::AttackFire) ||
+                (EnemyPhaseRuntime == EEnemyTurnPhase::AttackIce);
+
+            if (!bOk)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Enemy] Ignore %s (phase=%d)"),
+                    *Tag.ToString(), (int32)EnemyPhaseRuntime);
+                return;
+            }
+        }
+
+        if (bIsTurnEndTag)
+        {
+            const bool bOk = (EnemyPhaseRuntime == EEnemyTurnPhase::Retreat);
+
+            if (!bOk)
+            {
+                UE_LOG(LogTemp, Warning, TEXT("[Enemy] Ignore %s (phase=%d)"),
+                    *Tag.ToString(), (int32)EnemyPhaseRuntime);
+                return;
+            }
+        }
+    }
+
+    // (B) Def/Dodge 태그는 "Enemy 턴(공격 진행)"일 때만 Player가 처리해야 한다.
+    // 패링으로 적 턴을 강제 종료한 이후에도 DefEnd/DefHit가 늦게 올 수 있어서 반드시 막아야 함.
+    const bool bIsDefOrDodge = IsDefenseOrDodgeTag(Tag);
+    ////디버그
+    if (bIsDefOrDodge)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[onTag] %s | DefOrDodge=1 | EnemyActing=%d | MyTurn=%d | Unit=%s"),
+            *Tag.ToString(),
+            IsEnemyActingNow()?1:0,
+            bIsMyTurn?1:0,
+            *GetNameSafe(this)
+        );
+    }
+    
+    
+    const bool bCleanupTag =
+    (Tag == TAG_End) ||           // DefEnd
+    (Tag == TAG_HitConsume) ||    // HitConsume
+    (Tag == TAG_ParryEnd) ||      // ParryEnd
+    (Tag == FName(TEXT("DodgeEnd"))); // DodgeEnd(상수 있으면 그걸로)
+    
+    if (bIsDefOrDodge && !IsEnemyActingNow() && !bCleanupTag)
+    {
+        DebugLogIgnoreTag(Tag, TEXT("Defense/Dodge tag but enemy turn not active"));
         return;
     }
-    if (Tag == "DodgeEnd")
+
+    // ------------------------------------------------------------
+    // 1) Dodge 파싱
+    // ------------------------------------------------------------
+    const FString TagStr = Tag.ToString();
+
+    if (TagStr.StartsWith(TEXT("DodgeOpen_")))
+    {
+        bDodgeWindowOpen = true;
+        bDodgedThisBeat = false;
+        TryConsumeDodgeIntent();
+        return;
+    }
+
+    if (Tag == FName(TEXT("DodgeEnd")))
     {
         bDodgeWindowOpen = false;
         bDodgedThisBeat = false;
         return;
     }
-    if (TagStr.StartsWith("DodgeHit_"))
+
+    if (TagStr.StartsWith(TEXT("DodgeHit_")))
     {
         if (bInvincible)
         {
-            // 회피 성공 피드백(이펙트/사운드)만 주고 무시
+            // 회피 성공(무적) -> 피드백만 주고 무시
             return;
         }
 
-        // 기존 Hit 처리로 이어가기
-        if (Anim)
-        {
-            Anim->PlayerHit();
-        }
+        // 회피 실패면 피격
+        Anim->PlayerHit();
         return;
     }
-    
-    
+
+    // ------------------------------------------------------------
+    // 2) 공통 태그
+    // ------------------------------------------------------------
     if (Tag == TAG_TurnEnd)
     {
-        
+        // Enemy/Player 모두: 자기 턴일 때만 종료
+        if (!bIsMyTurn)
+        {
+            DebugLogIgnoreTag(Tag, TEXT("TurnEnd but not my turn"));
+            return;
+        }
+
         OnTurnEnd();
         return;
     }
-    
+
     if (Tag == TAG_ParryStart)
     {
         Anim->Notify_ParryStart();
         return;
     }
-    
+
     if (Tag == TAG_ParryEnd)
     {
         Anim->Notify_ParryEnd();
         return;
     }
-    
+
     if (Tag == TAG_Retreat)
     {
-        StartEnemyRetreat();
+        // Enemy만 의미 있음 + Enemy 턴일 때만
+        if (UnitType == EBattleUnitType::Enemy)
+        {
+            if (!bIsMyTurn)
+            {
+               
+                return;
+            }
+
+            StartEnemyRetreat();
+        }
         return;
     }
+
     if (Tag == TAG_HitConsume)
     {
-        // 추후 hitrequest 같은 bool 후처리 하는곳
         Anim->ConsumePlayerHit();
         Anim->ConsumeHit();
-        
-        
+
         bParryWindowOpen = false;
         bParryPrimedThisBeat = false;
         bDodgedThisBeat = false;
+        bDodgeWindowOpen = false;
+
         return;
-        
     }
+
     if (Tag == TAG_End)
     {
         UE_LOG(LogTemp, Warning, TEXT("[Def] End"));
-        ResolvePatternEnd();
+
+        // DefEnd는 “적 턴이 끝난 뒤 늦게 오면” 위에서 이미 필터링됨
         ResetPatternState();
+        if (Anim)
+        {
+            Anim->bParryPlaying = false;
+            Anim->bParryRequest = false;
+      //      Anim->ParryRequestHoldFrames = 0;
+        }
+        return;
     }
-    
-    // 파싱 위치
-    const FString S = Tag.ToString();
+    // 카운터 
+    if (Tag == FName("CounterStart"))
+    {
+        Anim->Notify_CounterStart();
+        return;
+    }
+    if (Tag == FName("CounterEnd"))
+    {
+        Anim->Notify_CounterEnd();
+        return;
+    }
+
+    // ------------------------------------------------------------
+    // 3) DefStart/DefOpen/DefHit 파싱 (패링/닷지 판정)
+    // ------------------------------------------------------------
     int32 N = 0;
-    
-    if (ParseIndex(S , PFX_Start , N))
+
+    if (ParseIndex(TagStr, PFX_Start, N))
     {
         ResetPatternState();
-        BeatTotal  = N; // 총 타수 
+        BeatTotal = N;
         BeatIndex = -1;
+        ParrySuccessCount = 0;
         return;
     }
-    
-    if (ParseIndex(S , PFX_Open , N))
-    {
-        BeatIndex =N;
-        bParryWindowOpen = true;
-        bParryPrimedThisBeat =false;
-        bDodgedThisBeat = false;
-        
-        return;
-    }
-    if (ParseIndex(S,PFX_Hit,N))
+
+    if (ParseIndex(TagStr, PFX_Open, N))
     {
         BeatIndex = N;
+        bParryWindowOpen = true;
+        bParryPrimedThisBeat = false;
+        bDodgedThisBeat = false;
+        UE_LOG(LogTemp, Warning, TEXT("[DefOpen] idx=%d | Win=1 | BeatTotal=%d | Unit=%s"),
+        N, BeatTotal, *GetNameSafe(this));
         
+        return;
+    }
+
+    if (ParseIndex(TagStr, PFX_Hit, N))
+    {
+        BeatIndex = N;
+
+        // 1) 판정
         if (bParryPrimedThisBeat)
         {
             ParrySuccessCount++;
+
             UE_LOG(LogTemp, Warning, TEXT("[Def] PARRY SUCCESS %d/%d (idx=%d)"),
                 ParrySuccessCount, BeatTotal, BeatIndex);
-            //TODO > 패링 성공 
+
+            // 2) 마지막 히트에서 올패링이면 즉시 카운터 + 적 턴 강제 종료
+            const bool bAllParryNow =
+                (BeatTotal > 0) &&
+                (!bPatternFailed) &&
+                (!bUsedDodge) &&
+                (ParrySuccessCount == BeatTotal) &&
+                (N == BeatTotal);
+
+            if (bAllParryNow && !bCounterTriggeredThisPattern)
+            {
+                bCounterTriggeredThisPattern = true;
+
+                UE_LOG(LogTemp, Warning, TEXT("[Counter] ALL PARRY NOW @DefHit_%d -> Trigger Counter"), N);
+
+                // 반격 애니
+                Anim->RequestCounter();
+
+                // 방어 윈도우 강제 닫기(늦은 DefOpen/DefHit가 와도 위 필터가 막지만 안전하게)
+                bParryWindowOpen = false;
+                bParryPrimedThisBeat = false;
+                bDodgeWindowOpen = false;
+                bDodgedThisBeat = false;
+
+                // 현재 행동자(적) 강제 종료
+                if (UWorld* W = GetWorld())
+                {
+                    if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+                    {
+                        if (ABattleTurnManager* TM = GM->GetTurnManager())
+                        {
+                            if (ABattleUnitActor* Acting = TM->GetCurrentUnit())
+                            {
+                                if (Acting && Acting->UnitType == EBattleUnitType::Enemy)
+                                {
+                                    
+                                    if (UBattleAnimInstance* EAnim = Cast<UBattleAnimInstance>(Acting->GetCharacterMesh()->GetAnimInstance()))
+                                    {
+                                        EAnim->ForceEnemyIdle();
+                                    }
+                                    Acting->SetEnemyPhaseOnAnim(EEnemyTurnPhase::Idle);
+                                    Acting->OnTurnEnd();
+                                }
+                                
+                                
+                            }
+                        }
+                    }
+                }
+            }
         }
         else if (bDodgedThisBeat)
         {
             bUsedDodge = true;
-            
-            //TODO >> 회피 성공
+            // dodge 성공 처리(필요하면 여기서 이펙트)
         }
         else
         {
-            bPatternFailed =true;
-            UBattleAnimInstance* BattleAnim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance());
-            BattleAnim->PlayerHit();
-            //TODO >> 회피 , 패링 실패! 피격 !
+            bPatternFailed = true;
+            Anim->PlayerHit();
         }
+
+        // beat 종료 처리
+        bParryPrimedThisBeat = false;
         bParryWindowOpen = false;
+        bDodgedThisBeat = false;
+
+        
+        UE_LOG(LogTemp, Warning, TEXT("[DefHitEnd] idx=%d | Win=%d Primed=%d"),
+        N, bParryWindowOpen?1:0, bParryPrimedThisBeat?1:0);
+        return;
+    }
+
+    // ------------------------------------------------------------
+    // 4) 카운터 카메라 태그
+    // ------------------------------------------------------------
+    if (Tag == FName("CounterCamStart"))
+    {
+        if (APlayerController* PC0 = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+        {
+            if (ABattlePlayerController* BPC = Cast<ABattlePlayerController>(PC0))
+            {
+                ABattleUnitActor* Enemy = nullptr;
+
+                if (UWorld* W = GetWorld())
+                {
+                    if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+                    {
+                        if (ABattleTurnManager* TM = GM->GetTurnManager())
+                        {
+                            Enemy = TM->GetCurrentUnit();
+                        }
+                    }
+                }
+
+                BPC->StartCounterCamera(this, Enemy);
+            }
+        }
+        return;
+    }
+
+    if (Tag == FName("CounterImpact"))
+    {
+        if (APlayerController* PC0 = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+        {
+            if (ABattlePlayerController* BPC = Cast<ABattlePlayerController>(PC0))
+            {
+                BPC->TriggerCounterImpact();
+            }
+        }
+        return;
+    }
+
+    if (Tag == FName("CounterCamEnd"))
+    {
+        if (APlayerController* PC0 = GetWorld() ? GetWorld()->GetFirstPlayerController() : nullptr)
+        {
+            if (ABattlePlayerController* BPC = Cast<ABattlePlayerController>(PC0))
+            {
+                BPC->EndCounterCamera(true);
+            }
+        }
         return;
     }
     
+}
+
+bool ABattleUnitActor::IsEnemyTurnActive() const
+{
+    if (UWorld* W = GetWorld())
+    {
+        if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+        {
+            if (ABattleTurnManager* TM = GM->GetTurnManager())
+            {
+                if (ABattleUnitActor* Cur = TM->GetCurrentUnit())
+                {
+                    // “현재 행동자”가 적이고, 적이 자기 턴으로 살아있을 때만 true
+                    return (Cur->UnitType == EBattleUnitType::Enemy) && Cur->bIsMyTurn;
+                }
+            }
+        }
+    }
+    return false;;
+}
+
+bool ABattleUnitActor::IsDefenseOrDodgeTag(const FName& Tag) const
+{
+    const FString S = Tag.ToString();
+
+    const bool bDef =
+        S.StartsWith(TEXT("DefStart_")) ||
+        S.StartsWith(TEXT("DefOpen_"))  ||
+        S.StartsWith(TEXT("DefHit_"))   ||
+        (Tag == FName(TEXT("DefEnd")));
+ 
+    const bool bDodge =
+        S.StartsWith(TEXT("DodgeOpen_")) ||
+        S.StartsWith(TEXT("DodgeHit_"))  ||
+        (Tag == FName(TEXT("DodgeEnd")));
+
+    return bDef || bDodge;
+}
+
+void ABattleUnitActor::CleanupEnemyTurnArtifacts()
+{
+    GetWorldTimerManager().ClearTimer(EnemyPhaseTimer);
+
+    bWalking = false;
+    WalkElapsed = 0.f;
+
+    bRetreating = false;
+    RetreatElapsed = 0.f;
+
+    // 남아있는 태그 큐 폐기 (늦게 온 태그가 다음 프레임에 또 먹히는 것 방지)
+    PendingAnimTags.Reset();
+
+    // 애니도 idle로 정리(원위치 스냅은 필요에 따라)
+    SetEnemyPhaseOnAnim(EEnemyTurnPhase::Idle);
+    SetActorLocation(EnemyHomeLocation);
 }
 
 void ABattleUnitActor::TryConsumeDodgeIntent()
@@ -588,6 +924,11 @@ void ABattleUnitActor::TryParry()
     if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
     {
         bool bAccepted = Anim->RequestParry();
+        UE_LOG(LogTemp, Warning, TEXT("[Tag ParryStart] Win=%d  Primed=%d"),
+        bParryWindowOpen?1:0,
+       
+        bParryPrimedThisBeat?1:0
+    );
         UE_LOG(LogTemp, Warning, TEXT("[Player] TryParry -> RequestParry"));
         if (bAccepted)
         {
@@ -605,30 +946,65 @@ void ABattleUnitActor::TryDodge()
     if (!bParryWindowOpen) return;
     if (bParryPrimedThisBeat) return;
     
-    bDodgedThisBeat = true;
-    DodgeIntentUntilTime = GetWorld()->TimeSeconds + DodgeIntentBufferSeconds;
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        const bool bAccepted = Anim->RequestDodge();
+        UE_LOG(LogTemp, Warning, TEXT("[Player] TryDodge accepted=%d"), bAccepted ? 1 : 0);
+
+        if (bAccepted)
+        {
+            bDodgedThisBeat = true;
+            bUsedDodge = true;              
+            // StartIFrame(0.25f);          
+        }
+    }
 }
 
+/*
 void ABattleUnitActor::ResolvePatternEnd()
 {
     const bool bAllParry = 
         (BeatTotal > 0) && (!bPatternFailed) && (!bUsedDodge) && (ParrySuccessCount == BeatTotal);
     
-    if (bAllParry)
+    if (!bAllParry) return;
+    
+    
+    if (CharacterMeshComp)
     {
-        // TODO 반격 GOGO
-        // 애니매이션 출력 
-        
+        if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+        {
+            Anim->RequestCounter();
+        }
+    }
+
+    
+    if (UWorld* W = GetWorld())
+    {
+        if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+        {
+            if (ABattleTurnManager* TM = GM->GetTurnManager())
+            {
+                if (ABattleUnitActor* Current = TM->GetCurrentUnit())
+                {
+                    if (Current->UnitType == EBattleUnitType::Enemy)
+                    {
+                        Current->OnTurnEnd(); // 적이 자기 턴을 끝내게 해야
+                    }
+                }
+            }
+        }
     }
     
 }
+*/
 
 void ABattleUnitActor::ResetPatternState()
 {
     bParryWindowOpen = false;
     bParryPrimedThisBeat = false;
     bDodgedThisBeat = false;
-    
+    bPatternFailed  = false;
+    bCounterTriggeredThisPattern = false;
     BeatIndex = -1 ;
     BeatTotal = 0;
     ParrySuccessCount = 0;
@@ -649,6 +1025,19 @@ void ABattleUnitActor::CacheCharacterMesh()
     // 첫 스켈레탈메시 잡기 
     CharacterMeshComp = FindComponentByClass<USkeletalMeshComponent>();
     
+}
+
+void ABattleUnitActor::ResetDefenseState()
+{
+    bParryWindowOpen = false;
+    
+}
+
+void ABattleUnitActor::DebugLogIgnoreTag(const FName& Tag, const TCHAR* Reason) const
+{
+    UE_LOG(LogTemp, Warning, TEXT("[TagIgnore] %s | Tag=%s | Unit=%s | MyTurn=%d"),
+        Reason, *Tag.ToString(), *GetNameSafe(this), bIsMyTurn ? 1 : 0);
+
 }
 
 void ABattleUnitActor::StartEnemyWalk()
@@ -683,6 +1072,7 @@ void ABattleUnitActor::StartEnemyCharge()
 
 void ABattleUnitActor::StartEnemyAttack()
 {
+    if (!bIsMyTurn) return;
     GetWorld()->GetTimerManager().ClearTimer(EnemyPhaseTimer);
 
     const bool bFire = (PlannedAttack == EEnemyAttackType::Fire);
@@ -696,6 +1086,7 @@ void ABattleUnitActor::StartEnemyAttack()
 
 void ABattleUnitActor::StartEnemyRetreat()
 {
+    UE_LOG(LogTemp, Warning, TEXT("[Enemy] StartEnemyRetreat | MyTurn=%d"), bIsMyTurn?1:0);
     // Retreat(점프백) 애니로 전환
     SetEnemyPhaseOnAnim(EEnemyTurnPhase::Retreat);
 
@@ -715,6 +1106,7 @@ void ABattleUnitActor::SetEnemyPhaseOnAnim(EEnemyTurnPhase Phase)
     
     if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
     {
+       // UE_LOG(LogTemp,Warning , TEXT("[ENEMY] :: SetEnemyPhase"))
         Anim->SetEnemyPhase(Phase);
     }
     
@@ -731,3 +1123,4 @@ void ABattleUnitActor::SetPlannedAttackOnAnim(EEnemyAttackType Type)
     }
     
 }
+

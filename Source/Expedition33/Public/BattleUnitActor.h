@@ -139,6 +139,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="EnemyTurn")
 	float EnemyRetreatDuration = 0.45f;
 	
+	
+	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="EnemyTurn")
 	EEnemyTurnPhase EnemyPhaseRuntime = EEnemyTurnPhase::Idle;
 
@@ -184,8 +186,7 @@ public:
 	UFUNCTION()
 	void FaceTargetInstant(AActor* Target);
 	
-	
-	//패링 , 회피 
+	//패링 , 회피
 public:
 	UPROPERTY()
 	TArray<FName> PendingAnimTags;
@@ -203,10 +204,29 @@ public:
 	float DodgeIntentUntilTime = 0.f;
 	float DodgeIntentBufferSeconds = 0.25f;
 	
+	
+	bool IsEnemyActingNow();
+	
+	//---------------------------------------
+
+	
+	//---------------------------------------
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	//패링 패턴상태 
 	bool bParryWindowOpen = false;
 	bool bParryPrimedThisBeat = false;
-	
+	bool bCounterTriggeredThisPattern = false;
 	
 	int32 BeatIndex = 0;
 	int32 BeatTotal = 0;
@@ -215,18 +235,20 @@ public:
 	bool bPatternFailed = false;
 	bool bUsedDodge = false;
 	
-	
+	bool IsEnemyTurnActive() const;
+	bool IsDefenseOrDodgeTag(const FName& Tag) const;
+
+	void CleanupEnemyTurnArtifacts();   // 강제 종료 시 정리
 	//회피 
 	void TryConsumeDodgeIntent();
 	void StartIFrame(float Duration);
 	void EndIFrame();
 	
-	
 	//입력 호출
 	void TryParry();
 	void TryDodge();
 	//판정
-	void ResolvePatternEnd();
+//	void ResolvePatternEnd();
 	void ResetPatternState();
 	
 	void PushAnimTag(FName Tag);
@@ -236,7 +258,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Battle")
 	void CacheCharacterMesh();
 	
+	//반격 counter
 	
+	// 패링 턴마다 방어 함수
+	void ResetDefenseState();
+	
+	
+	void DebugLogIgnoreTag(const FName& Tag, const TCHAR* Reason) const;
 	//void OnFreeAimHit(FName HitBone);
 	
 	void StartEnemyWalk();

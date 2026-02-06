@@ -29,7 +29,7 @@ void UExpeditionGameInstance::PlayBGM(USoundBase* NewBGM, float FadeTime)
 		1.0f,
 		1.0f,
 		0.f,
-		nullptr,
+		nullptr, 
 		true   // Persist Across Level Transition
 	);
 

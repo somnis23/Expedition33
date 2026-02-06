@@ -31,7 +31,7 @@ private:
 	
 	int32 CurrentTurnIndex = INDEX_NONE;
 	
-	
+	void BrodCastTurnState();
 	
 protected:
 	// Called when the game starts or when spawned

@@ -10,6 +10,8 @@
 void UBattleAnimInstance::SetEnemyPhase(EEnemyTurnPhase NewPhase)
 {
 	EnemyPhase = NewPhase;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] EnemyPhase set -> %d"), (int32)EnemyPhase);
+	
 	
 }
 
@@ -21,6 +23,8 @@ void UBattleAnimInstance::SetPlannedAttack(EEnemyAttackType NewType)
 
 void UBattleAnimInstance::SetTurnState(EBattleTurnState NewState, bool bMyTurn ,bool bPlayerTurnStar)
 {
+	
+	
 	TurnState = NewState;
 	bIsMyTurn = bMyTurn;
 	bPlayerTurnStart = bPlayerTurnStar;
@@ -108,6 +112,24 @@ void UBattleAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 			bDodgeRequest = false;
 		}
 	}
+	if (CounterRequestHoldFrames > 0)
+	{
+		--CounterRequestHoldFrames;
+		if (CounterRequestHoldFrames == 0)
+		{
+			bCounterRequest = false;
+		}
+	}
+	
+	if (ForceEnemyIdleHoldFrames > 0)
+	{
+		--ForceEnemyIdleHoldFrames;
+		if (ForceEnemyIdleHoldFrames == 0)
+		{
+			bForceEnemyIdle = false;
+		}
+	}
+	
 	
 	if (bTurnStartRequest)
 	{
@@ -207,8 +229,24 @@ void UBattleAnimInstance::Notify_ParryStart()
 void UBattleAnimInstance::Notify_ParryEnd()
 {
 	
-	bParryPlaying = false;
+	bParryPlaying = false;//todo
+	
+	bParryRequest = false;
+	ParryRequestHoldFrames = 0;
 	UE_LOG(LogTemp, Warning, TEXT("[Anim] Parry End"));
+}
+
+void UBattleAnimInstance::Notify_DodgeStart()
+{
+	bDodgePlaying = true;
+	bDodgeRequest = false; // 진입 즉시 소비(지연 발동 방지)
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Dodge Start"));
+}
+
+void UBattleAnimInstance::Notify_DodgeEnd()
+{
+	bDodgePlaying = false;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Dodge End"));
 }
 
 bool UBattleAnimInstance::RequestDodge()
@@ -222,4 +260,37 @@ bool UBattleAnimInstance::RequestDodge()
 	return true;
 }
 
+bool UBattleAnimInstance::RequestCounter()
+{
+	if (bCounterPlaying) return false;
+	if (bCounterRequest) return false;
+	bCounterRequest = true;
+	CounterRequestHoldFrames = 2;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Counter Requested"));
+	return true;
+	
+}
+
+void UBattleAnimInstance::Notify_CounterStart()
+{
+	bCounterPlaying = true;
+	bCounterRequest = false; 
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Counter Start"));
+	
+}
+
+void UBattleAnimInstance::Notify_CounterEnd()
+{
+	
+	bCounterPlaying = false;
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Counter End"));
+}
+
+void UBattleAnimInstance::ForceEnemyIdle()
+{
+	bForceEnemyIdle = true;
+	ForceEnemyIdleHoldFrames = 4;
+	
+}
+ 
 

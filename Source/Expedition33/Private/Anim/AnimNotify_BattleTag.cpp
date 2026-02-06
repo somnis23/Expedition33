@@ -25,10 +25,10 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 	const bool bIsDodgeTag =
 	TagStr.StartsWith("DodgeOpen_") ||
 	TagStr.StartsWith("DodgeHit_")  ||
-	TagToAdd == "DodgeEnd";
+	TagToAdd == FName(TEXT("DodgeEnd"));
 
 	
-	if (bIsDefTag)
+	if (bIsDefTag || bIsDodgeTag)
 	{
 		if (UWorld* W = MeshComp->GetWorld())
 		{
@@ -37,11 +37,6 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 				if (ABattleUnitActor* PlayerUnit = GM->GetBattlePlayerUnit())
 				{
 					PlayerUnit->PushAnimTag(TagToAdd);
-					return;
-				}
-				if (bIsDodgeTag)
-				{
-					GM->GetBattlePlayerUnit()->PushAnimTag(TagToAdd);
 					return;
 				}
 			}
@@ -58,7 +53,6 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 	{
 		if (ABattleUnitActor* Unit = Cast<ABattleUnitActor>(Cursor))
 		{
-			UE_LOG(LogTemp , Warning ,TEXT("ANIMnotify  :: mesh owner"));
 			//Unit->Tags.AddUnique(TagToAdd);
 			Unit->PushAnimTag(TagToAdd);
 			return;

@@ -25,12 +25,21 @@ ABattleCameraActor::ABattleCameraActor()
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm);
+	
+	TargetFOV = DefaultFOV;
+	TargetArmLength = DefaultArm;
+	TargetOffset = DefaultOffset;
 }
 
 void ABattleCameraActor::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
-	
+	if (bCinematicOverride)
+	{
+		
+		return;
+	}
+
 	if (Anchor.IsValid())
 	{
 		const float PivotZ = (CamMode == EBattleCamMode::FreeAim) ? FreeAimPivotZ : BattlePivotZ;
@@ -297,7 +306,7 @@ void ABattleCameraActor::UpdateTargetSelectCam(float DT)
 	const FVector LookDir = (FocusLoc - PlayerLoc).GetSafeNormal();
 	const float TargetYaw = LookDir.Rotation().Yaw;
 	
-	CurrentYaw = FMath::Clamp(CurrentYaw + TargetYaw, DT, 8.f);
+	CurrentYaw = FMath::FInterpTo(CurrentYaw, TargetYaw, DT, 8.f);
 	
 	const float DesiredPitch  =  -18.f;
 	CurrentPitch = FMath::FInterpTo(CurrentPitch, DesiredPitch, DT, 6.f);

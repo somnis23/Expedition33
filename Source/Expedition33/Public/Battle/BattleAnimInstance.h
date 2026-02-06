@@ -111,6 +111,12 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void Notify_ParryEnd();
 	
+	UFUNCTION(BlueprintCallable)
+	void Notify_DodgeStart();
+
+	UFUNCTION(BlueprintCallable)
+	void Notify_DodgeEnd();
+	
 	//Hit
 	UPROPERTY(BlueprintReadOnly,Category="Hit")
 	int32 HitCounter = 0;
@@ -133,6 +139,29 @@ public:
 	UFUNCTION(BlueprintCallable)
 	bool RequestDodge();
 	
+	//반격 counter
+	UPROPERTY(BlueprintReadOnly,Category= "Counter")
+	bool bCounterRequest = false;
+	
+	UPROPERTY(BlueprintReadOnly,Category="Counter")
+	bool bCounterPlaying = false;	
+	
+	UFUNCTION(BlueprintCallable, Category= "Counter")
+	bool RequestCounter();
+	
+	UFUNCTION(BlueprintCallable, Category="Counter")
+	void Notify_CounterStart();
+
+	UFUNCTION(BlueprintCallable, Category="Counter")
+	void Notify_CounterEnd();
+	
+public:
+	UPROPERTY(BlueprintReadOnly, Category="Enemy")
+	bool bForceEnemyIdle = false;
+	
+	UFUNCTION(BlueprintCallable, Category="Enemy")
+	void ForceEnemyIdle();
+	
 protected:
 	int32 FreeAimShootHoldFrames = 0;
 	
@@ -141,4 +170,8 @@ protected:
 	int32 PlayerHitHoldFrames = 0;
 	
 	int32 DodgeRequestHoldFrames = 0;
+	
+	int32 CounterRequestHoldFrames = 0;
+	
+	int32 ForceEnemyIdleHoldFrames = 0;
 };

@@ -136,8 +136,6 @@ void AMaelleCharacter::Move(const FInputActionValue& Value)
 		AddMovementInput(Forward , Axis.Y);
 		AddMovementInput(Right , Axis.X);
 		
-		
-		
 	}
 	
 }
@@ -175,25 +173,7 @@ void AMaelleCharacter::DoBattleTravel()
 {
 	
 }
-/*{
-	UE_LOG(LogTemp, Warning, TEXT("DoBattleTravel"));
 
-	if (!CachedGameInstance)
-	{
-		UE_LOG(LogTemp, Error, TEXT("CachedGameInstance is NULL"));
-		return;
-	}
-
-	CachedGameInstance->EnterBattle(
-		GetWorld()->GetFName(),
-		GetActorTransform(),
-		PendingBattleEnemyClass
-	);
-
-	UE_LOG(LogTemp, Warning, TEXT("OPEN LV_Battle"));
-	UGameplayStatics::OpenLevel(GetWorld(), FName("LV_Battle"));
-	
-}*/
 
 void AMaelleCharacter::StartBattleEncounter(AEnemyCharacter* Enemy)
 {
