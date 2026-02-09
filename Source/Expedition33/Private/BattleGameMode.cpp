@@ -33,7 +33,7 @@ void ABattleGameMode::BeginPlay()
     
     SpawnPlayer();
     SpawnEnemy();
-    
+    AdjustBattleFormation(DesiredBattleDistance);
     GetWorldTimerManager().SetTimerForNextTick(this, &ABattleGameMode::SpawnBattleCamera);
     if (!BattlePlayer || !BattleEnemy)
     {
@@ -142,5 +142,39 @@ void ABattleGameMode::SpawnBattleCamera()
        BPC->SetBattleCam(Cam);
         UE_LOG(LogTemp, Warning, TEXT("[GM] BattleCam injected to PC: %s"), *GetNameSafe(Cam));
     }
+    
+}
+
+void ABattleGameMode::AdjustBattleFormation(float DesiredDist)
+{
+    if (!BattlePlayer || !BattleEnemy) return;
+
+    const FVector P = BattlePlayer->GetActorLocation();
+    const FVector E = BattleEnemy->GetActorLocation();
+
+    // 현재 중앙 고정 (카메라 Center 유지 포인트)
+    const FVector Center = (P + E) * 0.5f;
+
+    // 두 유닛을 잇는 방향(플레이어 -> 적)
+    FVector Dir = (E - P);
+    Dir.Z = 0.f;
+    Dir = Dir.GetSafeNormal();
+    if (Dir.IsNearlyZero()) Dir = FVector::ForwardVector;
+
+    // 원하는 거리의 절반만큼 양쪽으로 벌림
+    const float Half = DesiredDist * 0.5f;
+
+    const FVector NewPlayerLoc = Center - Dir * Half;
+    const FVector NewEnemyLoc  = Center + Dir * Half;
+
+    BattlePlayer->SetActorLocation(NewPlayerLoc);
+    BattleEnemy->SetActorLocation(NewEnemyLoc);
+
+    /* 서로 바라보게
+    BattlePlayer->SetActorRotation((NewEnemyLoc - NewPlayerLoc).Rotation());
+    BattleEnemy->SetActorRotation((NewPlayerLoc - NewEnemyLoc).Rotation());*/
+
+    UE_LOG(LogTemp, Warning, TEXT("[GM] AdjustBattleFormation Dist=%.1f Center=(%.1f,%.1f)"),
+        DesiredDist, Center.X, Center.Y);
     
 }

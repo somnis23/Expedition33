@@ -58,6 +58,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Battle")
 	TSubclassOf<ABattlePlayerController> BattlePlayerControllerClass;
 
+	float DesiredBattleDistance = 700.f;
+	
+	UFUNCTION(BlueprintCallable)
+	void AdjustBattleFormation(float DesiredDist);
 protected:
 	// === Classes ===
 	UPROPERTY(EditDefaultsOnly, Category="Battle")

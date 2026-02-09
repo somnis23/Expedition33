@@ -18,7 +18,8 @@ enum class EBattleInputMode : uint8
 {
 	None,
 	TargetSelect,
-	FreeAim
+	FreeAim,
+	SkillSelect
 };
 class ABattleUnitActor;
 class ABattleTurnManager;
@@ -229,6 +230,11 @@ public:
 private:
 	EBattleInputMode InputMode = EBattleInputMode::None;
 
+	//타겟 스킬용인지 공격용인지
+	bool bSkillTargeting = false;
+	// 스킬 인덱스
+	int32 SelectedSkillIndex = INDEX_NONE;
+	
 	int32 SelectedEnemyIndex = 0;
 
 	UPROPERTY()
@@ -238,9 +244,10 @@ private:
 	ABattleUnitActor* GetCurrentUnit() const;
 	void CacheEnemies();
 	
-	
 	void UpdateCounterCam_Cinematic(float DeltaTime);
 	
+	void TargetSelect_ForSkill(int32 SkillIndex);
+	void ExecuteSeletedSkill();
 	
 	//freeaim
 	void ClearEnemySelection();
@@ -250,6 +257,9 @@ private:
 	void OnPressA_PrevTarget();
 	void OnPressD_NextTarget();
 	void OnPressF_ConfirmTarget();
+	void OnPressR_SkillSelect();
+	void OnPressQ_Skill1();
+	void OnPressW_Skill2();
 	
 	void OnFreeAimStart();
 	void OnFreeAimEnd();

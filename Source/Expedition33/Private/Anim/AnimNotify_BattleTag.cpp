@@ -23,9 +23,9 @@ void UAnimNotify_BattleTag::Notify(USkeletalMeshComponent* MeshComp, UAnimSequen
 		TagToAdd == FName(TEXT("DefEnd"));
 	
 	const bool bIsDodgeTag =
-	TagStr.StartsWith("DodgeOpen_") ||
-	TagStr.StartsWith("DodgeHit_")  ||
-	TagToAdd == FName(TEXT("DodgeEnd"));
+		TagStr.StartsWith("DodgeOpen_") ||
+		TagStr.StartsWith("DodgeHit_")  ||
+		TagToAdd == FName(TEXT("DodgeEnd"));
 
 	
 	if (bIsDefTag || bIsDodgeTag)

@@ -2,6 +2,9 @@
 
 
 #include "Battle/BattlePlayerController.h"
+
+#include <ThirdParty/ShaderConductor/ShaderConductor/External/DirectXShaderCompiler/include/dxc/DXIL/DxilConstants.h>
+
 #include "BattleGameMode.h"
 #include "Battle/BattleTurnManager.h"
 #include "BattleUnitActor.h"
@@ -27,6 +30,11 @@ void ABattlePlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::A, IE_Pressed, this, &ABattlePlayerController::OnPressA_PrevTarget);
     InputComponent->BindKey(EKeys::D, IE_Pressed, this, &ABattlePlayerController::OnPressD_NextTarget);
     InputComponent->BindKey(EKeys::F, IE_Pressed, this, &ABattlePlayerController::OnPressF_ConfirmTarget);
+    //스킬 키 바인딩
+    InputComponent->BindKey(EKeys::R, IE_Pressed, this, &ABattlePlayerController::OnPressR_SkillSelect);
+    InputComponent->BindKey(EKeys::Q, IE_Pressed, this, &ABattlePlayerController::OnPressQ_Skill1);
+    InputComponent->BindKey(EKeys::W, IE_Pressed, this, &ABattlePlayerController::OnPressW_Skill2);
+    
     // 키바인딩 FreeAim
     InputComponent->BindKey(EKeys::LeftMouseButton, IE_Pressed, this, &ABattlePlayerController::OnFreeAimFire);
     InputComponent->BindKey(EKeys::RightMouseButton, IE_Pressed, this, &ABattlePlayerController::OnFreeAimStart);
@@ -113,11 +121,11 @@ void ABattlePlayerController::UpdateCounterCam_Cinematic(float DeltaTime)
 
     const FVector Side = FVector::CrossProduct(FVector::UpVector, Dir).GetSafeNormal();
 
-    // --- Pivot(중간점 + 약간 위)
+    // --- Pivot
     FVector Pivot = (P + E) * 0.5f;
     Pivot.Z += PivotHeight;
 
-    // --- LookAt: 적을 더 크게 잡기(원작 감성)
+    // --- LookAt: 적을 더 크게 잡기
     FVector LookAt = (E * 0.7f + P * 0.3f); 
     LookAt.Z += CounterLookAtZ;
 
@@ -218,6 +226,49 @@ void ABattlePlayerController::UpdateCounterCam_Cinematic(float DeltaTime)
     
 }
 
+void ABattlePlayerController::TargetSelect_ForSkill(int32 SkillIndex)
+{
+    ABattleUnitActor* PlayerUnit = GetPlayerUnit();
+    if (!PlayerUnit) return;
+    
+    
+    if (!PlayerUnit->CanUseSkill(SkillIndex))
+    {
+        return;
+    }
+    
+    CacheEnemies();
+    if (CachedEnemies.Num() == 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[PC] No Enemies to Select (Skill)"));
+        return;
+    }
+    SelectedSkillIndex = SkillIndex;
+    bSkillTargeting = true;
+    InputMode = EBattleInputMode::TargetSelect;
+    SelectedEnemyIndex = 0;
+    ApplyEnemySelection();
+    
+    
+}
+
+void ABattlePlayerController::ExecuteSeletedSkill()
+{
+    ABattleUnitActor* PlayerUnit = GetPlayerUnit();
+    if (!PlayerUnit) return;
+    
+    ABattleUnitActor* Target = CachedEnemies[SelectedEnemyIndex];
+    
+    if (!Target) return;
+    
+    PlayerUnit->UseSkill(SelectedSkillIndex , Target);
+    
+    InputMode = EBattleInputMode::None;
+    bSkillTargeting = false;
+    //SelectedSkillIndex = INDEX_NONE;
+    
+}
+
 void ABattlePlayerController::ClearEnemySelection()
 {
     for (ABattleUnitActor* E : CachedEnemies)
@@ -248,12 +299,6 @@ void ABattlePlayerController::ApplyEnemySelection()
         }
     }
     
-    
-    /*if (CachedEnemies[SelectedEnemyIndex])
-    {
-        CachedEnemies[SelectedEnemyIndex]->SetSelected(true);
-        UE_LOG(LogTemp, Warning, TEXT("[PC] Target Selected = %s"), *CachedEnemies[SelectedEnemyIndex]->GetName());
-    }*/
 }
 
 void ABattlePlayerController::OnPressS_AttackMode()
@@ -325,18 +370,66 @@ void ABattlePlayerController::OnPressF_ConfirmTarget()
         Cam->SetTargetSelect(false, nullptr);   // 내부에서 CamMode=Battle 로 바꾸도록
         
     }
+    if (InputMode == EBattleInputMode::TargetSelect)
+    {
+        if (bSkillTargeting)
+        {
+            // 타겟 위치 찾기
+            Attacker->SetCurrentTarget(Target); 
+            //타겟 바라보기
+            Attacker->FaceTargetInstant(Target);
+            //스킬사용 
+            ExecuteSeletedSkill();
+        }
+        else
+        {
+            // 타겟 위치 찾기
+            Attacker->SetCurrentTarget(Target); 
+            //타겟 바라보기
+            Attacker->FaceTargetInstant(Target);
+            //공격 
+            Attacker->RequestAttack();        
+        }
+        
+    }
+    
     
     // 확정: 선택 해제 + 모드 종료
     ClearEnemySelection();
     InputMode = EBattleInputMode::None;
 
-    UE_LOG(LogTemp, Warning, TEXT("[PC] Confirm Target=%s -> RequestAttack"), *Target->GetName());
-    // 타겟 위치 찾기
-    Attacker->SetCurrentTarget(Target); 
-    //타겟 바라보기
-    Attacker->FaceTargetInstant(Target);
-    //공격 
-    Attacker->RequestAttack();          
+   
+      
+}
+
+void ABattlePlayerController::OnPressR_SkillSelect()
+{
+    if (!IsPlayerTurn()) return;
+    if (InputMode == EBattleInputMode::FreeAim) return;
+    if (InputMode != EBattleInputMode::None) return;
+    
+    InputMode = EBattleInputMode::SkillSelect;
+    SelectedSkillIndex = INDEX_NONE;
+    bSkillTargeting =false;
+    
+    UE_LOG(LogTemp, Warning, TEXT("[Input] Enter SkillSelect (Q/W)"));
+}
+
+void ABattlePlayerController::OnPressQ_Skill1()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Input] Q pressed. Mode=%d"), (int32)InputMode);
+    if (InputMode != EBattleInputMode::SkillSelect)
+        return;
+    TargetSelect_ForSkill(0);
+}
+
+void ABattlePlayerController::OnPressW_Skill2()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Input] W pressed. Mode=%d"), (int32)InputMode);
+    if (InputMode != EBattleInputMode::SkillSelect)
+        return;
+    
+    TargetSelect_ForSkill(1);
 }
 
 void ABattlePlayerController::OnFreeAimStart()

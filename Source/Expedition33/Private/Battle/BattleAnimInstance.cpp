@@ -56,9 +56,17 @@ void UBattleAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
 	
-	
+	if (!bHitPlaying && PendingHitCount > 0)
+	{
+		bHitEdge = true;         // 1프레임 트리거
+		PendingHitCount--;       // 여기서 “소비”
+	}
+	else
+	{
+		bHitEdge = false;
+	}
 	// 카운터 변화 감지 -> 1프레임 펄스 생성
-	if (HitCounter != HitCounterSeen)
+	/*if (HitCounter != HitCounterSeen)
 	{
 		bHitEdge = true;
 		HitCounterSeen = HitCounter;
@@ -66,7 +74,7 @@ void UBattleAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	else
 	{
 		bHitEdge = false;
-	}
+	}*/
 	
 	
 	if (FreeAimShootHoldFrames > 0)
@@ -181,14 +189,14 @@ void UBattleAnimInstance::RequestFreeAimShoot()
 
 void UBattleAnimInstance::RequestHit()
 {
-	HitCounter++;
+	PendingHitCount++;
 	UE_LOG(LogTemp, Warning, TEXT("[Anim] RequestHit counter=%d"), HitCounter);
 	
 }
 
 void UBattleAnimInstance::ConsumeHit()
 {
-	bHitRequest = false;
+	PendingHitCount = FMath::Max(0, PendingHitCount - 1);
 	
 }
 
@@ -292,5 +300,15 @@ void UBattleAnimInstance::ForceEnemyIdle()
 	ForceEnemyIdleHoldFrames = 4;
 	
 }
- 
+
+void UBattleAnimInstance::RequestSkill(int32 InSkillIndex)
+{
+	UE_LOG(LogTemp, Warning, TEXT("[Anim] Action=%d SkillIndex=%d"), (int32)Action, SkillIndex);
+	if (Action == EBattleUnitState::Skill) return;  // 이미 스킬 중이면 무시
+	SkillIndex = InSkillIndex;
+	bSkillRequested = true;
+	Action = EBattleUnitState::Skill;
+}
+
+
 

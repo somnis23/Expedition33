@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BattleUnitActor.h"
 #include "Animation/AnimInstance.h"
 #include "Battle/BattleTypes.h"
 #include "BattleAnimInstance.generated.h"
@@ -59,6 +60,11 @@ protected:
 	
 	int32 AttackRequestHoldFrames = 0;
 	
+	UPROPERTY(BlueprintReadOnly)
+	int32 PendingHitCount = 0;
+	
+	UPROPERTY(BlueprintReadOnly)
+	bool bHitPlaying = false; // Hit 상태 재생 중 락
 	
 public:
 	UFUNCTION()
@@ -161,6 +167,28 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Enemy")
 	void ForceEnemyIdle();
+	
+	UFUNCTION(BlueprintCallable, Category="Skill")
+	void RequestSkill(int32 InSkillIndex);
+	
+	UFUNCTION(BlueprintCallable, Category="Skill")
+	void SetAction(EBattleUnitState InAcetion)
+	{
+		Action = InAcetion;
+	}
+	
+	UPROPERTY(BlueprintReadOnly, Category="Battle")
+	EBattleUnitState Action = EBattleUnitState::Idle;
+	
+	// 스킬용
+	UPROPERTY(BlueprintReadOnly, Category="Skill")
+	int32 SkillIndex = INDEX_NONE;
+
+	// “한 번만 트리거”용
+	UPROPERTY(BlueprintReadOnly, Category="Skill")
+	bool bSkillRequested = false;
+	
+	void ReceiveDamageAndPlayHit(int32 Damage, ABattleUnitActor* Attacker);
 	
 protected:
 	int32 FreeAimShootHoldFrames = 0;

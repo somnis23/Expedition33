@@ -19,7 +19,8 @@ enum class EBattleUnitState : uint8
 	Idle,
 	Attack,
 	Hit,
-	Dead
+	Dead,
+	Skill
 };
 UENUM(BlueprintType)
 enum class EDefenseResult : uint8
@@ -29,6 +30,26 @@ enum class EDefenseResult : uint8
 	Dodge,
 	Fail
 };
+UENUM(BlueprintType)
+enum class EBattleActionType : uint8
+{
+	Attack,
+	Skill,
+	Counter,
+	FreeAim
+};
+
+USTRUCT(BlueprintType)
+struct FDamageSpec
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadWrite) int32 Amount = 0;
+	UPROPERTY(BlueprintReadWrite) EBattleActionType Source = EBattleActionType::Attack;
+	UPROPERTY(BlueprintReadWrite) bool bCritical = false;
+	UPROPERTY(BlueprintReadWrite) float Multiplier = 1.f;
+};
+
 class USkeletalMeshComponent;
 class UBattleAnimInstance;
 
@@ -100,12 +121,25 @@ public:
 		bool bTurnStart
 	);
 	
+	bool ApplyDamageSpec(const FDamageSpec& Spec , ABattleUnitActor* InstigatorUnit);
+protected:
+	void TriggerHitReaction();		// HIT 
+	void TriggerDeath();			// DEAD
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Battle")
+	int32 MaxHP = 1000;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Battle")
+	int32 CurrentHP = 1000;
+
+	UPROPERTY(BlueprintReadOnly, Category="Battle")
+	bool bIsAlive = true;
+	
+public:
+	
+	
 	UFUNCTION(BlueprintCallable)
 	void EnterAttackMode();
-	
-	
-	
-	
 	
 	void ConfirmAttack();
 	
@@ -206,23 +240,9 @@ public:
 	
 	
 	bool IsEnemyActingNow();
-	
-	//---------------------------------------
 
 	
-	//---------------------------------------
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+
 	//패링 패턴상태 
 	bool bParryWindowOpen = false;
 	bool bParryPrimedThisBeat = false;
@@ -239,6 +259,18 @@ public:
 	bool IsDefenseOrDodgeTag(const FName& Tag) const;
 
 	void CleanupEnemyTurnArtifacts();   // 강제 종료 시 정리
+	//스킬
+	bool CanUseSkill(int32 SkillIndex) const;
+	
+	void UseSkill(int32 SkillIndex , ABattleUnitActor* Target);
+	
+	// 스킬 실행 중 어떤 스킬이었는지 저장(노티파이까지 이어질 수 있게)
+	int32 PendingSkillIndex = INDEX_NONE;
+	
+	UPROPERTY()
+	TObjectPtr<ABattleUnitActor> PendingSkillTarget = nullptr;
+	
+	
 	//회피 
 	void TryConsumeDodgeIntent();
 	void StartIFrame(float Duration);

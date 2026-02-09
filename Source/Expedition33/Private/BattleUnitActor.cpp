@@ -211,6 +211,57 @@ void ABattleUnitActor::OnTurnStateChanged(
     );
 }
 
+bool ABattleUnitActor::ApplyDamageSpec(const FDamageSpec& Spec, ABattleUnitActor* InstigatorUnit)
+{
+    if (!bIsAlive) return false;
+
+    // 1) 최종 데미지 계산( 방어/저항/약점 )
+    const float Base = (float)Spec.Amount;
+    const float Mul  = FMath::Max(0.f, Spec.Multiplier);
+    int32 FinalDamage = FMath::Max(0, FMath::RoundToInt(Base * Mul));
+
+    if (FinalDamage <= 0) return false;
+
+    // 2) HP 감소
+    const int32 OldHP = CurrentHP;
+    CurrentHP = FMath::Clamp(CurrentHP - FinalDamage, 0, MaxHP);
+
+    UE_LOG(LogTemp, Warning, TEXT("[DMG] %s took %d (%d -> %d) src=%d crit=%d"),
+        *GetName(), FinalDamage, OldHP, CurrentHP, (int32)Spec.Source, Spec.bCritical ? 1 : 0);
+
+    // 3) 피격 애니 트리거 
+    TriggerHitReaction();
+
+    // 4) 사망 처리
+    if (CurrentHP <= 0)
+    {
+        bIsAlive = false;
+        TriggerDeath();
+        return true;
+    }
+
+    return true;
+   
+}
+
+void ABattleUnitActor::TriggerHitReaction()
+{
+    if (USkeletalMeshComponent* Mesh = GetCharacterMesh())
+    {
+        if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Mesh->GetAnimInstance()))
+        {
+            Anim->RequestHit(); //  HitCounter++ → NativeUpdateAnimation에서 bHitEdge 펄스
+        }
+    }
+    
+}
+
+void ABattleUnitActor::TriggerDeath()
+{
+    UE_LOG(LogTemp, Warning, TEXT("[Death] %s"), *GetName());
+    
+}
+
 void ABattleUnitActor::EnterAttackMode()
 {
     CommandState = EBattleCommandState::TargetSelect ;
@@ -398,24 +449,24 @@ bool ABattleUnitActor::SpendCost(int32 Amount)
 void ABattleUnitActor::OnFreeAimHit(const FName HitBone)
 {
     if (!CharacterMeshComp) return;
-    
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] OnFreeAimHit %s bone=%s"),
-        *GetName(), *HitBone.ToString());
 
+    
+    FDamageSpec Spec;
+    Spec.Source = EBattleActionType::FreeAim;
+    Spec.Amount = 10;
+    Spec.Multiplier = 1.f;
     USkeletalMeshComponent* Mesh = GetCharacterMesh();
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit Mesh=%s"), *GetNameSafe(Mesh));
+    
     if (!Mesh) return;
 
     UAnimInstance* Raw = Mesh->GetAnimInstance();
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit RawAnim=%s Class=%s"),
-        *GetNameSafe(Raw),
-        Raw ? *Raw->GetClass()->GetName() : TEXT("null"));
+    
 
-    UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Raw);
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] Hit CastBattleAnim=%s"), *GetNameSafe(Anim));
-    if (!Anim) return;
+    /*UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Raw);
+    
+    if (!Anim) return;*/
 
-    Anim->RequestHit();
+    ApplyDamageSpec(Spec, nullptr);
 
     
 }
@@ -884,6 +935,29 @@ void ABattleUnitActor::CleanupEnemyTurnArtifacts()
     // 애니도 idle로 정리(원위치 스냅은 필요에 따라)
     SetEnemyPhaseOnAnim(EEnemyTurnPhase::Idle);
     SetActorLocation(EnemyHomeLocation);
+}
+
+bool ABattleUnitActor::CanUseSkill(int32 SkillIndex) const
+{
+    if (SkillIndex < 0 || SkillIndex > 1) return false;
+    
+    // todo : 코스트 
+    
+    return true;
+}
+
+void ABattleUnitActor::UseSkill(int32 SkillIndex, ABattleUnitActor* Target)
+{
+    if (!CanUseSkill(SkillIndex)|| !Target) return;
+    
+    PendingSkillIndex = SkillIndex;
+    PendingSkillTarget = Target;
+    
+    if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
+    {
+        Anim->RequestSkill(SkillIndex);
+    }
+    
 }
 
 void ABattleUnitActor::TryConsumeDodgeIntent()
