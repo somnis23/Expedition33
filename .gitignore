@@ -72,3 +72,8 @@ Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
 DerivedDataCache/*
+/Content/SlashFX
+/Content/NiagaraMagicalSlashes
+/Content/Chaotic_Skies
+/Content/_SplineVFX
+*.zip
