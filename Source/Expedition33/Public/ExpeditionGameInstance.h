@@ -34,6 +34,7 @@ public:
 	UPROPERTY(BlueprintReadOnly , Category= "Game")
 	FVector SavedWorldTransform;
 	
+	
 	UPROPERTY(BlueprintReadOnly)
 	FTransform SavedPlayerTransform;
 	//누구와 전투했는가?
@@ -42,6 +43,7 @@ public:
 	
 	bool bReturnFromBattle;
 	
+	bool bHasReturnTransform = false;
 public:
 	UFUNCTION(BlueprintCallable , Category= " Game ")
 	void EnterBattle(FName InReturnLevel , const FTransform& PlayerTransform , TSubclassOf<ABattleUnitActor> EnemyClass);

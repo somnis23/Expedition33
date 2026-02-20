@@ -8,6 +8,8 @@
 #include "Expedition33/Expedition33Character.h"
 #include "CineCameraComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Widget/BattleHpBarWidget.h"
+#include "Widget/BattleHUDWidget.h"
 #include "BattlePlayerController.generated.h"
 
 /**
@@ -224,9 +226,37 @@ public:
 	void UpdateAimTarget();                 // 하이라이트 갱신
 	void ClearAimHighlight();
 	
-	
-	
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UBattleHpBarWidget> BP_PlayerHPBarClass;
 
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UBattleHpBarWidget> BP_EnemyHPBarClass;
+	
+	UPROPERTY()
+	UBattleHpBarWidget* PlayerHPBar = nullptr;
+	
+	UPROPERTY()
+	UBattleHpBarWidget* EnemyHPBar = nullptr;
+	
+	void SetEnemyHPFocus(ABattleUnitActor* NewEnemy);
+	
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UBattleHUDWidget> BP_BattleHUDClass;
+
+	UPROPERTY()
+	UBattleHUDWidget* BattleHUD = nullptr;
+	
+	UPROPERTY(EditDefaultsOnly, Category="UI")
+	TSubclassOf<UUserWidget> BP_DefenseHUDClass;
+
+	UPROPERTY()
+	UUserWidget* DefenseHUD = nullptr;
+	
+	void RefreshBattleHUDHint();
+	
+	
+	virtual void BeginPlay() override;
+	
 private:
 	EBattleInputMode InputMode = EBattleInputMode::None;
 

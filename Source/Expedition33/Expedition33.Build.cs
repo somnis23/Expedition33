@@ -10,6 +10,6 @@ public class Expedition33 : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore",
-			"EnhancedInput", "AudioMixer","UMG"});
+			"EnhancedInput", "AudioMixer","UMG","Niagara"});
 	}
 }

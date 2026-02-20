@@ -29,6 +29,20 @@ public:
 	
 	UFUNCTION(BlueprintCallable, Category="Battle")
 	ABattleUnitActor* GetBattlePlayerUnit() const { return BattlePlayer; }
+	
+	UPROPERTY()
+	FTimerHandle BattleEndTimerHandle;
+	
+	UPROPERTY()
+	bool bBattleEnding = false;
+	
+	UFUNCTION()
+	void RequestBattleEnd (bool bPlayerWin);
+	
+	UFUNCTION()
+	void FinishBattleEnd();
+	
+	
 protected:
 	// === Spawn ===
 	void SpawnPlayer();

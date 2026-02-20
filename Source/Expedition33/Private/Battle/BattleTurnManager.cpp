@@ -4,6 +4,8 @@
 #include "Battle/BattleTurnManager.h"
 
 #include "BattleUnitActor.h"
+#include "Battle/BattlePlayerController.h"
+#include "Kismet/GameplayStatics.h"
 
 
 // Sets default values
@@ -43,6 +45,14 @@ void ABattleTurnManager::NextTurn()
 	BrodCastTurnState();
 	
 	TurnQueue[CurrentTurnIndex]->OnTurnStart();
+	
+	if (APlayerController* PC0 = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		if (ABattlePlayerController* BPC = Cast<ABattlePlayerController>(PC0))
+		{
+			BPC->RefreshBattleHUDHint(); // 여기서 내턴이면 Visible, 적턴이면 Hidden 처리됨
+		}
+	}
 	
 }
 

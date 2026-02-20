@@ -25,9 +25,8 @@ void UAnimNotify_SkillImpact::Notify(USkeletalMeshComponent* MeshComp, UAnimSequ
 
 	// 스킬별 데미지
 	if (SkillIndex == 0)      Spec.Amount = 25; // Q
-	else if (SkillIndex == 1) Spec.Amount = 40; // W
+	else if (SkillIndex == 1) Spec.Amount = 1000; // W
 	else                      Spec.Amount = 10;
-
 	Spec.Multiplier = 1.f;
 
 	Target->ApplyDamageSpec(Spec, Attacker);

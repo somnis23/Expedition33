@@ -14,7 +14,7 @@ void UAnimNotify_AttackImpact::Notify(USkeletalMeshComponent* MeshComp, UAnimSeq
 	ABattleUnitActor* Attacker = Cast<ABattleUnitActor>(MeshComp->GetOwner());
 	if (!Attacker) return;
 
-	ABattleUnitActor* Target = Attacker->GetCurrentTarget(); // 네 함수명에 맞춰
+	ABattleUnitActor* Target = Attacker->GetCurrentTarget(); 
 	if (!Target) return;
 
 	FDamageSpec Spec;

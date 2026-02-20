@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "Battle/BattleTurnManager.h"
+#include "Kismet/GameplayStatics.h"
 
 //FTimerHandle EnemyAttackTimer;
 static const FName TAG_TurnEnd(TEXT("AttackEndPending"));
@@ -17,15 +18,24 @@ static const FString PFX_Open(TEXT("DefOpen_"));
 static const FString PFX_Hit(TEXT("DefHit_"));
 static const FName   TAG_End(TEXT("DefEnd"));
 
+
 static const FName TAG_ParryStart(TEXT("ParryStart"));
 static const FName TAG_ParryEnd(TEXT("ParryEnd"));
+
+static const FName TAG_FXStart(TEXT("SkillImpact"));
 
 static const FString TAG_DodgeOpen(TEXT("DodgeOpen_"));
 static const FString TAG_DodgeHit(TEXT("DodgeHit_"));
 static const FName TAG_DodgeEnd(TEXT("DodgeEnd"));
 
+static const FName TAG_PhantomCamStart(TEXT("PhantomCamStart"));
+static const FName TAG_PhantomImpact(TEXT("PhantomImpact"));
+static const FName TAG_PhantomCamEnd(TEXT("PhantomCamEnd"));
 
-
+static const FName TAG_GommageStart(TEXT("GommageCamStart"));
+static const FName TAG_GommageCamFocus(TEXT("GommageCamFocus"));
+static const FName TAG_GommageImpact(TEXT("GommageImpact"));
+static const FName TAG_GommageCamEnd(TEXT("GommageCamEnd"));
 // 숫자 파싱 
 static bool ParseIndex(const FString& Str, const FString& Prefix, int32& OutIndex)
 {
@@ -226,20 +236,20 @@ bool ABattleUnitActor::ApplyDamageSpec(const FDamageSpec& Spec, ABattleUnitActor
     const int32 OldHP = CurrentHP;
     CurrentHP = FMath::Clamp(CurrentHP - FinalDamage, 0, MaxHP);
 
-    UE_LOG(LogTemp, Warning, TEXT("[DMG] %s took %d (%d -> %d) src=%d crit=%d"),
-        *GetName(), FinalDamage, OldHP, CurrentHP, (int32)Spec.Source, Spec.bCritical ? 1 : 0);
 
-    // 3) 피격 애니 트리거 
-    TriggerHitReaction();
 
-    // 4) 사망 처리
+   
+    // 5) 데미지 처리
+    OnHPChanged.Broadcast(CurrentHP, MaxHP);
+    // 6) 사망 처리
     if (CurrentHP <= 0)
     {
         bIsAlive = false;
         TriggerDeath();
         return true;
     }
-
+    // 3) 피격 애니 트리거 
+    TriggerHitReaction();
     return true;
    
 }
@@ -250,8 +260,18 @@ void ABattleUnitActor::TriggerHitReaction()
     {
         if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Mesh->GetAnimInstance()))
         {
-            Anim->RequestHit(); //  HitCounter++ → NativeUpdateAnimation에서 bHitEdge 펄스
+            /*if (NS_HitFX) 
+            {
+                // 1) 그냥 몸 중앙에
+                const FVector Loc = Mesh->GetComponentLocation() + FVector(0,0,80.f);
+                UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+                    GetWorld(), NS_HitFX, Loc, FRotator::ZeroRotator, FVector(1.f)
+                );
+            }*/
+            Anim->RequestHit();
         }
+        
+        
     }
     
 }
@@ -259,7 +279,7 @@ void ABattleUnitActor::TriggerHitReaction()
 void ABattleUnitActor::TriggerDeath()
 {
     UE_LOG(LogTemp, Warning, TEXT("[Death] %s"), *GetName());
-    
+    OnDead();
 }
 
 void ABattleUnitActor::EnterAttackMode()
@@ -276,7 +296,25 @@ void ABattleUnitActor::ConfirmAttack()
     
     CommandState = EBattleCommandState::Executing;
     
-    RequestAttack();
+    FDamageSpec Spec;
+    Spec.Source = EBattleActionType::Attack;
+    Spec.Amount = 80;
+    Spec.Multiplier = 1.f;
+    USkeletalMeshComponent* Mesh = GetCharacterMesh();
+    
+    if (!Mesh) return;
+    
+
+    UAnimInstance* Raw = Mesh->GetAnimInstance();
+    
+
+    /*UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(Raw);
+    
+    if (!Anim) return;*/
+    
+    
+    ApplyDamageSpec(Spec, nullptr);
+    RequestAttack(); 
     
 }
 
@@ -342,6 +380,24 @@ void ABattleUnitActor::SetSelected(bool bSelected)
         TEXT("[Unit] %s Selected = %s"),
         *GetName(),
         bSelected ? TEXT("true") : TEXT("false"));
+    
+}
+
+void ABattleUnitActor::OnDead()
+{
+    if (bDead) return;
+    bDead = true;
+    
+    if (UnitType == EBattleUnitType::Enemy)
+    {
+        if (UWorld* W = GetWorld())
+        {
+            if (ABattleGameMode* GM = W->GetAuthGameMode<ABattleGameMode>())
+            {
+                GM->RequestBattleEnd(true);
+            }
+        }
+    }
     
 }
 
@@ -510,8 +566,7 @@ void ABattleUnitActor::PushAnimTag(FName Tag)
 {
     if (Tag.IsNone()) return;
     PendingAnimTags.Add(Tag); 
-    UE_LOG(LogTemp, Warning, TEXT("[Unit] PushAnimTag %s (%s)"),
-        *Tag.ToString(), *GetName());
+   
 }
 
 void ABattleUnitActor::ConsumeAnimTags()
@@ -575,8 +630,7 @@ void ABattleUnitActor::HandleAnimTag(FName Tag)
         }
     }
 
-    // (B) Def/Dodge 태그는 "Enemy 턴(공격 진행)"일 때만 Player가 처리해야 한다.
-    // 패링으로 적 턴을 강제 종료한 이후에도 DefEnd/DefHit가 늦게 올 수 있어서 반드시 막아야 함.
+   
     const bool bIsDefOrDodge = IsDefenseOrDodgeTag(Tag);
     ////디버그
     if (bIsDefOrDodge)
@@ -601,6 +655,9 @@ void ABattleUnitActor::HandleAnimTag(FName Tag)
         DebugLogIgnoreTag(Tag, TEXT("Defense/Dodge tag but enemy turn not active"));
         return;
     }
+    
+    
+    
 
     // ------------------------------------------------------------
     // 1) Dodge 파싱
@@ -635,6 +692,78 @@ void ABattleUnitActor::HandleAnimTag(FName Tag)
         return;
     }
 
+    if (Tag == TAG_PhantomCamStart)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->StartPhantomStrikeCam(this, PendingSkillTarget);
+            }
+        }
+        return;
+    }
+
+    if (Tag == TAG_PhantomImpact)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->PhantomStrikeImpactBeat();
+            }
+        }
+        // FX 를 여기서 해도 되나 타격당으로 하려고 따로 태그를 빼두었음
+        //  OnSkillImpact();
+        return;
+    }
+    if (Tag == TAG_PhantomCamEnd)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->EndPhantomStrikeCam();
+            }
+        }
+        return;
+    }
+    
+    if ( Tag == TAG_GommageStart)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->StartGommageCam(this , PendingSkillTarget);
+            }
+        }
+        return;
+    }
+    if ( Tag == TAG_GommageImpact)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->GommageImpactBeat();
+            }
+        }
+        return;
+    }
+    if ( Tag == TAG_GommageCamEnd)
+    {
+        if (ABattlePlayerController* PC = Cast<ABattlePlayerController>(UGameplayStatics::GetPlayerController(GetWorld(), 0)))
+        {
+            if (ABattleCameraActor* Cam = PC->GetBattleCam())
+            {
+                Cam->EndGommageCam();
+            }
+        }
+        return;
+    }
+    
+    
     // ------------------------------------------------------------
     // 2) 공통 태그
     // ------------------------------------------------------------
@@ -706,7 +835,15 @@ void ABattleUnitActor::HandleAnimTag(FName Tag)
         }
         return;
     }
-    // 카운터 
+    if (Tag == TAG_FXStart)
+    {
+        OnSkillImpact();
+        UE_LOG(LogTemp , Warning , TEXT("[FX]  FX : START "))
+        return;
+    }
+    
+    
+        //카운터
     if (Tag == FName("CounterStart"))
     {
         Anim->Notify_CounterStart();
@@ -941,6 +1078,24 @@ bool ABattleUnitActor::CanUseSkill(int32 SkillIndex) const
 {
     if (SkillIndex < 0 || SkillIndex > 1) return false;
     
+    if (SkillIndex == 0 )
+    {
+        if (Cost < 5)
+        {
+            return false;
+        }
+        return true;
+    }
+    
+    if (SkillIndex == 1 )
+    {
+        if (Cost < 7)
+        {
+            return false;
+        }
+        return true;
+    }
+    
     // todo : 코스트 
     
     return true;
@@ -952,11 +1107,47 @@ void ABattleUnitActor::UseSkill(int32 SkillIndex, ABattleUnitActor* Target)
     
     PendingSkillIndex = SkillIndex;
     PendingSkillTarget = Target;
+   // USkeletalMeshComponent* Mesh = GetCharacterMesh();
     
     if (UBattleAnimInstance* Anim = Cast<UBattleAnimInstance>(CharacterMeshComp->GetAnimInstance()))
     {
+        
         Anim->RequestSkill(SkillIndex);
     }
+    
+}
+
+void ABattleUnitActor::OnSkillImpact()
+{
+    /*UE_LOG(LogTemp, Warning, TEXT("[FX]Skill Impact"));
+
+    if (!PendingSkillTarget || !NS_HitFX) return;
+
+    const FVector Loc = PendingSkillTarget->GetActorLocation() + HitFXOffset;
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+        GetWorld(), NS_HitFX, Loc, FRotator::ZeroRotator, FVector(1.f)
+    );*/
+    
+    UE_LOG(LogTemp, Warning, TEXT("[FX] Owner=%s Class=%s PendingTarget=%s NS_HitFX=%s"),
+       *GetName(),
+       *GetClass()->GetName(),
+       PendingSkillTarget ? *PendingSkillTarget->GetName() : TEXT("NULL"),
+       NS_HitFX ? *NS_HitFX->GetName() : TEXT("NULL")
+   );
+    if (!PendingSkillTarget) return;
+
+    // 타겟(피격자)의 FX를 사용
+    UNiagaraSystem* FX = PendingSkillTarget->NS_HitFX;  
+    if (!FX) return;
+
+    const FVector Loc = PendingSkillTarget->GetActorLocation() + HitFXOffset;
+
+    UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+        GetWorld(), FX, Loc, FRotator::ZeroRotator, FVector(1.f)
+    );
+    
+    
     
 }
 
@@ -1009,9 +1200,6 @@ void ABattleUnitActor::TryParry()
             bParryPrimedThisBeat =true;
         }
     };
-    
-
-    
     
 }
 
@@ -1087,8 +1275,6 @@ void ABattleUnitActor::ResetPatternState()
     bUsedDodge = false;
     
 }
-
-
 
 void ABattleUnitActor::CacheCharacterMesh()
 {

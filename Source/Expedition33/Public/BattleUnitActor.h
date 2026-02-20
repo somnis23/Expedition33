@@ -2,9 +2,11 @@
 
 #include "CoreMinimal.h"
 #include "Battle/BattleTypes.h"
+#include "NiagaraSystem.h"             
+#include "NiagaraFunctionLibrary.h"     
 #include "GameFramework/Actor.h"
 #include "BattleUnitActor.generated.h"
-
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHPChanged, int32, NewHP, int32, MaxHP);
 UENUM(BlueprintType)
 enum class EBattleUnitType : uint8
 {
@@ -132,10 +134,23 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Battle")
 	int32 CurrentHP = 1000;
 
+	
+	UPROPERTY(BlueprintReadOnly, Category="Battle")
+	bool bDead = false;
+	
 	UPROPERTY(BlueprintReadOnly, Category="Battle")
 	bool bIsAlive = true;
 	
 public:
+	
+	UFUNCTION(BlueprintCallable , Category="HP")
+	int32 GetHP() const {return CurrentHP;};
+	
+	UFUNCTION(BlueprintCallable, Category="HP")
+	int32 GetMaxHP() const {return MaxHP;};
+	
+	UPROPERTY(BlueprintAssignable , Category="HP")
+	FOnHPChanged OnHPChanged;
 	
 	
 	UFUNCTION(BlueprintCallable)
@@ -153,6 +168,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	virtual void SetSelected(bool bSelected);
 	
+	void OnDead();
 	
 public:	
 	// Called every frame
@@ -220,6 +236,16 @@ public:
 	UFUNCTION()
 	void FaceTargetInstant(AActor* Target);
 	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Battle|UI")
+	FText DisplayName;
+
+	UFUNCTION(BlueprintCallable, Category="Battle|UI")
+	FText GetDisplayName() const
+	{
+		// 비어있으면 액터 이름 대신
+		return DisplayName.IsEmpty() ? FText::FromString(GetName()) : DisplayName;
+	}
+	
 	//패링 , 회피
 public:
 	UPROPERTY()
@@ -241,7 +267,8 @@ public:
 	
 	bool IsEnemyActingNow();
 
-	
+	UPROPERTY(EditDefaultsOnly, Category="VFX")
+	FVector HitFXOffset = FVector(0,0,80.f);
 
 	//패링 패턴상태 
 	bool bParryWindowOpen = false;
@@ -271,6 +298,8 @@ public:
 	TObjectPtr<ABattleUnitActor> PendingSkillTarget = nullptr;
 	
 	
+	void OnSkillImpact();
+	
 	//회피 
 	void TryConsumeDodgeIntent();
 	void StartIFrame(float Duration);
@@ -290,7 +319,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Battle")
 	void CacheCharacterMesh();
 	
-	//반격 counter
+	UPROPERTY(EditDefaultsOnly , Category= "FX")
+	UNiagaraSystem* NS_HitFX = nullptr;
+	
+	
+	/*
+	UFUNCTION(BlueprintCallable, Category="FX")
+	void SpawnHitFX(FName AttachBoneOrSocket = NAME_None);
+	*/
 	
 	// 패링 턴마다 방어 함수
 	void ResetDefenseState();

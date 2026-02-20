@@ -44,10 +44,107 @@ void ABattlePlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Q,IE_Pressed, this, &ABattlePlayerController::OnDodge);
 }
 
+void ABattlePlayerController::RefreshBattleHUDHint()
+{
+    if (!BattleHUD) return;
+
+    
+    if (DefenseHUD)
+    {
+        DefenseHUD->SetVisibility(!IsPlayerTurn() ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+    }
+    
+    if (!IsPlayerTurn())
+    {
+        
+        BattleHUD->SetVisibility(ESlateVisibility::Hidden);
+        return;
+    }
+    BattleHUD->SetVisibility(ESlateVisibility::Visible);
+    
+    
+    
+    
+    switch (InputMode)
+    {
+    case EBattleInputMode::None:
+        BattleHUD->SetHintState(EBattleHUDHintState::Default);
+        break;
+    case EBattleInputMode::SkillSelect:
+        BattleHUD->SetHintState(EBattleHUDHintState::SkillSelect);
+        break;
+    case EBattleInputMode::TargetSelect:
+       
+        BattleHUD->SetHintState(EBattleHUDHintState::AttackSelect);
+        break;
+    default:
+        BattleHUD->SetHintState(EBattleHUDHintState::Default);
+        break;
+    }
+    
+}
+
+void ABattlePlayerController::BeginPlay()
+{
+    Super::BeginPlay();
+    
+    if (BP_BattleHUDClass)
+    {
+        BattleHUD = CreateWidget<UBattleHUDWidget>(this, BP_BattleHUDClass);
+        if (BattleHUD)
+        {
+            BattleHUD->AddToViewport(5);
+           
+            RefreshBattleHUDHint();
+            
+            UE_LOG(LogTemp, Warning, TEXT("[HUD] Created %s"), *GetNameSafe(BattleHUD));
+        }
+    }
+    
+    if (BP_DefenseHUDClass)
+    {
+        DefenseHUD = CreateWidget<UUserWidget>(this, BP_DefenseHUDClass);
+        if (DefenseHUD)
+        {
+            DefenseHUD->AddToViewport(6); 
+            DefenseHUD->SetVisibility(ESlateVisibility::Hidden);
+        }
+    }
+    
+    if (BP_PlayerHPBarClass && !PlayerHPBar)
+    {
+        PlayerHPBar = CreateWidget<UBattleHpBarWidget>(this, BP_PlayerHPBarClass);
+        if (PlayerHPBar) PlayerHPBar->AddToViewport(10);
+    }
+
+    if (BP_EnemyHPBarClass && !EnemyHPBar)
+    {
+        EnemyHPBar = CreateWidget<UBattleHpBarWidget>(this, BP_EnemyHPBarClass);
+        if (EnemyHPBar) EnemyHPBar->AddToViewport(11); // 상단바가 위에
+        if (EnemyHPBar) EnemyHPBar->BindToUnit(nullptr); // 시작 숨김
+    }
+
+    if (ABattleUnitActor* PlayerUnit = GetPlayerUnit())
+    {
+        if (PlayerHPBar) PlayerHPBar->BindToUnit(PlayerUnit);
+    }
+
+    // 시작 시 현재 타겟/현재 유닛이 적이면 상단바 세팅(옵션)
+    if (ABattleUnitActor* Cur = GetCurrentUnit())
+    {
+        if (Cur->IsEnemyUnit()) SetEnemyHPFocus(Cur);
+    }
+    
+    
+}
+
+
 ABattleCameraActor* ABattlePlayerController::GetBattleCam()
 {
+    
+    
     if (BattleCam && IsValid(BattleCam)) return BattleCam;
-
+    
     // 지금 보고 있는 카메라가 곧 배틀카메라임
     BattleCam = Cast<ABattleCameraActor>(GetViewTarget());
     if (!BattleCam)
@@ -298,6 +395,7 @@ void ABattlePlayerController::ApplyEnemySelection()
             Cam->SetTargetSelect(true, NewTarget);
         }
     }
+    SetEnemyHPFocus(NewTarget);
     
 }
 
@@ -305,31 +403,31 @@ void ABattlePlayerController::OnPressS_AttackMode()
 {
     if (!IsPlayerTurn()) return;
     if (InputMode == EBattleInputMode::FreeAim) return;
-
+    
     ABattleCameraActor* Cam = GetBattleCam();
-    UE_LOG(LogTemp, Warning, TEXT("[PC] S Pressed Cam=%s ViewTarget=%s"),
-        *GetNameSafe(Cam), *GetNameSafe(GetViewTarget()));
+   
 
     if (InputMode == EBattleInputMode::TargetSelect)
     {
         InputMode = EBattleInputMode::None;
         ClearEnemySelection();
         if (Cam) Cam->SetTargetSelect(false, nullptr);
-        UE_LOG(LogTemp, Warning, TEXT("[PC] Attack Select Mode OFF"));
+        
         return;
     }
 
     CacheEnemies();
     if (CachedEnemies.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("[PC] No Enemies to Select"));
+        
         return;
     }
 
     InputMode = EBattleInputMode::TargetSelect;
     SelectedEnemyIndex = 0;
 
-    ApplyEnemySelection(); // 여기서 SetTargetSelect(true,target) 들어감
+    ApplyEnemySelection(); 
+    RefreshBattleHUDHint();
     UE_LOG(LogTemp, Warning, TEXT("[PC] Attack Select Mode ON"));
 }
 
@@ -359,6 +457,8 @@ void ABattlePlayerController::OnPressF_ConfirmTarget()
     if (InputMode != EBattleInputMode::TargetSelect) return;
     if (!IsPlayerTurn()) return;
     if (CachedEnemies.Num() == 0) return;
+    
+    
 
     ABattleUnitActor* Attacker = GetCurrentUnit();
     ABattleUnitActor* Target = CachedEnemies[SelectedEnemyIndex];
@@ -390,13 +490,14 @@ void ABattlePlayerController::OnPressF_ConfirmTarget()
             //공격 
             Attacker->RequestAttack();        
         }
-        
+        RefreshBattleHUDHint();
     }
     
     
     // 확정: 선택 해제 + 모드 종료
     ClearEnemySelection();
     InputMode = EBattleInputMode::None;
+   // RefreshBattleHUDHint();
 
    
       
@@ -411,25 +512,28 @@ void ABattlePlayerController::OnPressR_SkillSelect()
     InputMode = EBattleInputMode::SkillSelect;
     SelectedSkillIndex = INDEX_NONE;
     bSkillTargeting =false;
+    RefreshBattleHUDHint();
     
-    UE_LOG(LogTemp, Warning, TEXT("[Input] Enter SkillSelect (Q/W)"));
 }
 
 void ABattlePlayerController::OnPressQ_Skill1()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Input] Q pressed. Mode=%d"), (int32)InputMode);
+   
     if (InputMode != EBattleInputMode::SkillSelect)
         return;
+    
     TargetSelect_ForSkill(0);
+    RefreshBattleHUDHint();
 }
 
 void ABattlePlayerController::OnPressW_Skill2()
 {
-    UE_LOG(LogTemp, Warning, TEXT("[Input] W pressed. Mode=%d"), (int32)InputMode);
+   
     if (InputMode != EBattleInputMode::SkillSelect)
         return;
     
     TargetSelect_ForSkill(1);
+    RefreshBattleHUDHint();
 }
 
 void ABattlePlayerController::OnFreeAimStart()
@@ -442,6 +546,7 @@ void ABattlePlayerController::OnFreeAimStart()
         if (BattleCam) BattleCam->SetTargetSelect(false, nullptr);
     }
     InputMode = EBattleInputMode::FreeAim;
+    
     AimedUnit = nullptr;
     
     
@@ -471,7 +576,7 @@ void ABattlePlayerController::OnFreeAimStart()
         }
     }
     
-    UE_LOG(LogTemp, Warning, TEXT("[PC] FreeAim ON"));
+    RefreshBattleHUDHint();
     
     
 }
@@ -481,6 +586,7 @@ void ABattlePlayerController::OnFreeAimEnd()
     if (InputMode != EBattleInputMode::FreeAim) return;
     ClearAimHighlight();
     InputMode = EBattleInputMode::None;
+    
     AimedUnit = nullptr;
     
     // 1) 카메라 FreeAim OFF
@@ -506,8 +612,8 @@ void ABattlePlayerController::OnFreeAimEnd()
         FreeAimCrosshairWidget->RemoveFromParent();
         FreeAimCrosshairWidget = nullptr;
     }
-
-    UE_LOG(LogTemp, Warning, TEXT("[PC] FreeAim OFF"));
+    RefreshBattleHUDHint();
+    
 }
 
 void ABattlePlayerController::OnFreeAimFire()
@@ -616,121 +722,6 @@ void ABattlePlayerController::PlayerTick(float DeltaTime)
         return;
     }
     
-    /*
-    if (bCounterCamActive)
-{   
-    // FreeAim 켜져 있으면 강제 종료(카운터 카메라에 방해됨)
-    if (InputMode == EBattleInputMode::FreeAim)
-    {
-        OnFreeAimEnd();
-    }
-
-    // CounterCam 업데이트
-    CounterElapsed += DeltaTime;
-
-    // 안전 체크
-    /*if (!CounterCam || !CounterPlayer || !CounterEnemy)
-    {
-        EndCounterCamera(true);
-        return;
-    }#1#
-
-    const FVector P = CounterPlayer->GetActorLocation();
-    const FVector E = CounterEnemy->GetActorLocation();
-
-    const FVector DirPE = (E - P).GetSafeNormal();
-    const FVector Side  = FVector::CrossProduct(FVector::UpVector, DirPE).GetSafeNormal();
-
-    const FVector Pivot = (P + E) * 0.5f + FVector(0,0,PivotHeight);
-
-    auto Smooth01 = [](float X)
-    {
-        X = FMath::Clamp(X, 0.f, 1.f);
-        return X * X * (3.f - 2.f * X);
-    };
-        UpdateCounterCam();
-    
-        float Dist = WideDistance;
-    
-        float SideAmt = WideSide;
-    
-        float FOV = WideFOV;
-
-    
-    // 0.00 ~ 1.36 : pull-back (Start -> Wide)
-    // 1.36 ~ 2.00 : hold wide
-    // 2.00 ~ 2.20 : punch-in (Wide -> Punch) + FOV 킥
-    // 2.20 ~ 3.00 : recover (Punch -> slight back) + FOV 복구
-    // 3.00 ~ end  : 복귀
-    const float T = CounterElapsed;
-
-    if (T < 1.36f)
-    {
-        float a = Smooth01(T / 1.36f);
-        Dist    = FMath::Lerp(StartDistance, WideDistance, a);
-        SideAmt = FMath::Lerp(StartSide,    WideSide,    a);
-        FOV     = FMath::Lerp(StartFOV,     WideFOV,     a);
-    }
-    else if (T < 2.00f)
-    {
-        Dist    = WideDistance;
-        SideAmt = WideSide;
-        FOV     = WideFOV;
-    }
-    else if (T < 2.20f)
-    {
-        float a = Smooth01((T - 2.00f) / 0.20f);
-        Dist    = FMath::Lerp(WideDistance,  PunchDistance, a);
-        SideAmt = FMath::Lerp(WideSide,      PunchSide,     a);
-        FOV     = FMath::Lerp(WideFOV,       PunchFOV,      a);
-
-        // 자동 임팩트(원하면 TriggerCounterImpact 태그로만 하게 바꿔도 됨)
-        if (!bImpactTriggered)
-        {
-            bImpactTriggered = true;
-            TriggerCounterImpact();
-        }
-    }
-    else if (T < 3.00f)
-    {
-        float a = Smooth01((T - 2.20f) / 0.80f);
-        Dist    = FMath::Lerp(PunchDistance, PunchDistance + 25.f, a);
-        SideAmt = PunchSide;
-        FOV     = FMath::Lerp(PunchFOV, RecoverFOV, a);
-    }
-    else if (T < CounterDuration)
-    {
-        // 끝부분 유지
-        Dist = PunchDistance + 25.f;
-        SideAmt = PunchSide;
-        FOV = RecoverFOV;
-    }
-    else
-    {
-        EndCounterCamera(true);
-        return;
-    }
-
-    // 오비트(살짝 회전) 느낌: Side를 Dir와 섞어서 비틀기
-    const float OrbitRad = FMath::DegreesToRadians(OrbitDegrees);
-    const float BlendOrbit = Smooth01(FMath::Clamp((T - 0.2f) / 0.8f, 0.f, 1.f));
-    const FVector SideRot = (Side * FMath::Cos(OrbitRad * BlendOrbit) + (-DirPE) * FMath::Sin(OrbitRad * BlendOrbit)).GetSafeNormal();
-
-    const FVector CamLoc = Pivot + (-DirPE * Dist) + (SideRot * SideAmt) + FVector(0,0,HeightOffset);
-
-    CounterCam->SetActorLocation(CamLoc);
-    CounterCam->SetActorRotation((E - CamLoc).Rotation());
-
-    if (UCineCameraComponent* Cine = CounterCam->GetCineCameraComponent())
-    {
-       
-        Cine->SetFieldOfView(FOV);
-    }
-
-    return;
-}
-*/
-    
     
     if (!IsPlayerTurn() && InputMode == EBattleInputMode::FreeAim)
     {
@@ -757,6 +748,13 @@ void ABattlePlayerController::PlayerTick(float DeltaTime)
     if (ABattleCameraActor* Cam = GetBattleCam())
     {
         Cam->AddAimInput(YawDelta, PitchDelta);
+    }
+    if (ABattleUnitActor* Cur = GetCurrentUnit())
+    {
+        if (Cur->IsEnemyUnit())
+        {
+            SetEnemyHPFocus(Cur);
+        }
     }
     
 }
@@ -851,27 +849,22 @@ void ABattlePlayerController::ClearAimHighlight()
     AimedUnit = nullptr;
 }
 
-/*
-void ABattlePlayerController::StartCounterCamera(ABattleUnitActor* PlayerUnit, ABattleUnitActor* EnemyUnit)
+void ABattlePlayerController::SetEnemyHPFocus(ABattleUnitActor* NewEnemy)
 {
-    if (!GetWorld() || !BattleCameraActor || !PlayerUnit || !EnemyUnit) return;
-
-    SavedViewTarget = GetViewTarget();
-
-    CounterPlayer = PlayerUnit;
-    CounterEnemy  = EnemyUnit;
-
-    CounterFromLoc = BattleCameraActor->GetActorLocation();
-    CounterFromRot = BattleCameraActor->GetActorRotation();
-
-    bCounterCamActive = true;
-    bCounterCamSettled = false;
-    CounterStartRealTime = GetWorld()->GetRealTimeSeconds();
-
-    // 뷰 타겟은 "배틀 카메라"로 유지, 대신 카메라 액터 자체를 움직인다
-    SetViewTargetWithBlend(BattleCameraActor, CounterBlendIn, EViewTargetBlendFunction::VTBlend_Cubic);
+    if (!EnemyHPBar) return;
+    if (!NewEnemy || !NewEnemy->IsEnemyUnit() || !NewEnemy->IsAlive())
+    {
+        EnemyHPBar->BindToUnit(nullptr);
+        return;
+    
+    }
+    
+    if (EnemyHPBar->GetBoundUnit() == NewEnemy ) return;
+    
+    EnemyHPBar->BindToUnit(NewEnemy);
+    
 }
-*/
+
 
 void ABattlePlayerController::EndCounterCamera(bool bBlendBack)
 {
@@ -879,20 +872,7 @@ void ABattlePlayerController::EndCounterCamera(bool bBlendBack)
     CounterElapsed = 0.f;
     bImpactTriggered = false;
     bCounterCamSettled = false;
-    
-    /*AActor* Target = CounterReturnTarget ? CounterReturnTarget : (AActor*)GetPawn();
 
-    if (bBlendBack && Target)
-    {
-        SetViewTargetWithBlend(Target, BlendOutTime);
-    }
-    else if (Target)
-    {
-        SetViewTarget(Target);
-    }
-
-    UE_LOG(LogTemp, Warning, TEXT("[PC] CounterCam End | BackTo=%s"), *GetNameSafe(Target));
-    */
     
     if (GetWorld())
     {

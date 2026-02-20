@@ -250,8 +250,9 @@ void AMaelleCharacter::FinishBattleEncounter()
 		GetActorTransform(),
 		PendingBattleEnemyClass
 	);
-
-	UGameplayStatics::OpenLevel(GetWorld(), FName("LV_Battle"));
+	
+	UGameplayStatics::OpenLevel(GetWorld(), FName("Level_02_no_terrain"));
+	//UGameplayStatics::OpenLevel(GetWorld(), FName("LV_Battle"));
 }
 
 

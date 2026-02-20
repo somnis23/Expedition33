@@ -22,14 +22,11 @@ void ABattleGameMode::BeginPlay()
     TEXT("### GAMEMODE CLASS = %s ###"),
     *GetClass()->GetName());
     
-    
     if (UExpeditionGameInstance* GI = GetGameInstance<UExpeditionGameInstance>())
     {
         GI->PlayBGM(GI->BattleBGM , 0.5f);
         
     }
-    
-    
     
     SpawnPlayer();
     SpawnEnemy();
@@ -61,6 +58,45 @@ void ABattleGameMode::BeginPlay()
     
     ABattlePlayerController* PC = Cast<ABattlePlayerController>
     (UGameplayStatics::GetPlayerController(this,0));
+    
+}
+
+void ABattleGameMode::RequestBattleEnd(bool bPlayerWin)
+{
+    if (bBattleEnding) return;
+    bBattleEnding = true;
+    
+    UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 0.08f);
+    
+    FTimerDelegate Del;
+    Del.BindUFunction(this, FName("FinishBattleEnd"));
+    
+    GetWorld()->GetTimerManager().SetTimerForNextTick([this, Del]()
+    {
+        GetWorld()->GetTimerManager().SetTimer(BattleEndTimerHandle, Del, 0.7f, false);
+    });
+}
+
+void ABattleGameMode::FinishBattleEnd()
+{
+    
+    // 1) 타임 복구
+    UGameplayStatics::SetGlobalTimeDilation(GetWorld(), 1.0f);
+
+    // 2) GameInstance에서 돌아갈 레벨 얻기
+    if (UExpeditionGameInstance* GI = Cast<UExpeditionGameInstance>(GetGameInstance()))
+    {
+        const FName ReturnLevel = GI->ReturnLevelName;  
+        if (!ReturnLevel.IsNone())
+        {
+            GI->StopBGM(2.0f);
+            UGameplayStatics::OpenLevel(this, ReturnLevel);
+            return;
+        }
+    }
+
+    // fallback
+    UGameplayStatics::OpenLevel(this, FName("Level_01_terrain"));
     
 }
 
@@ -112,7 +148,7 @@ void ABattleGameMode::SpawnEnemy()
 
 void ABattleGameMode::SpawnBattleCamera()
 {
-    
+    UE_LOG(LogTemp, Warning, TEXT("[GM] SpawnBattleCamera called"));
     if (!BattleCameraClass || !BattlePlayer || !BattleEnemy)
     {
         UE_LOG(LogTemp, Error, TEXT("SpawnBattleCamera failed: invalid refs"));
